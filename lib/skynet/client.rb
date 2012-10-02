@@ -59,7 +59,7 @@ module Skynet
 
       # #TODO When a reconnect returns registered == false we need to go back to doozer
       @registered = service_handshake['registered']
-      @client_id = service_handshake['clientid'] || BSON::ObjectId.new.to_s
+      @client_id = service_handshake['clientid'] # We must use the clientid provided by the handshake
 
       # Send blank ClientHandshake
       client_handshake = { 'clientid' => @client_id }
@@ -99,18 +99,31 @@ module Skynet
           # be supplied with each retry
           socket.user_data ||= 0
           header = {
-#            'servicemethod' => "#{@service_name}.#{method_name}",
-            'servicemethod' => method_name.to_s,
+            'servicemethod' => "#{@service_name}.Forward",
             'seq'           => socket.user_data,
-            'clientid'      => @client_id
           }
           @logger.debug "Sending Header"
           @logger.trace 'Header', header
           socket.send(BSON.serialize(header))
 
+
+          @logger.trace 'In', parameters
+
+          # TODO: The request is actaully a wrapper object, with the paramters sent in the "in" field, which must by a byte array
+          body = {
+          'clientid'      => @client_id,
+          'in'            => BSON.serialize(parameters).to_s,
+          'method'        => method_name,
+          'requestinfo'   => {
+                                'requestid' => BSON::ObjectId.new.to_s,
+                                'retrycount' => 0, # TODO: this should be incremented if request is retried,
+                                'originaddress' => '' # TODO: this should be forwarded along in case of services also being a client and calling additional services. If empty it will be stuffed with connecting address
+                             }
+          }
+
           @logger.debug "Sending Body"
-          @logger.trace 'Body', parameters
-          socket.send(BSON.serialize(parameters))
+          @logger.trace 'Body', body
+          socket.send(BSON.serialize(body))
         end
 
         # Once send is successful it could have been processed, so we can no
@@ -140,7 +153,14 @@ module Skynet
 
         # Increment Sequence number only on successful response
         @socket.user_data += 1
-        response
+
+
+        # Return Value
+        # TODO: The actual value is inside the main object, it's a byte array of it's own and needs to be deserialized
+        out = BSON.deserialize(response['out'])
+        @logger.trace 'Return Value', out
+
+        out
       end
     end
 

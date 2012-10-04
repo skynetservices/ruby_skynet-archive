@@ -42,31 +42,32 @@ module Skynet
         :connect_retry_count    => 5,
         # As soon as a connection is established, this block is called
         # to perform any initialization, authentication, and/or handshake
-        :on_connect             => Proc.new do
-          # TODO
+        :on_connect             => Proc.new do |socket|
+          # Reset user_data on each connection
+          socket.user_data = 0
+
+          # Receive Service Handshake
+          # Registered bool
+          #   Registered indicates the state of this service. If it is false, the connection will
+          #   close immediately and the client should look elsewhere for this service.
+          #
+          # ClientID string
+          #   ClientID is a UUID that is used by the client to identify itself in RPC requests.
+          @logger.debug "Waiting for Service Handshake"
+          service_handshake = self.class.read_bson_document(socket)
+          @logger.trace 'Service Handshake', service_handshake
+
+          # #TODO When a reconnect returns registered == false we need to go back to doozer
+          @registered = service_handshake['registered']
+          @client_id = service_handshake['clientid']
+
+          # Send blank ClientHandshake
+          client_handshake = { 'clientid' => @client_id }
+          @logger.debug "Sending Client Handshake"
+          @logger.trace 'Client Handshake', client_handshake
+          socket.send(BSON.serialize(client_handshake))
         end
       )
-      # Receive Service Handshake
-      # Registered bool
-      #   Registered indicates the state of this service. If it is false, the connection will
-      #   close immediately and the client should look elsewhere for this service.
-      #
-      # ClientID string
-      #   ClientID is a UUID that is used by the client to identify itself in RPC requests.
-      @logger.debug "Waiting for Service Handshake"
-      service_handshake = self.class.read_bson_document(@socket)
-      @logger.trace 'Service Handshake', service_handshake
-
-      # #TODO When a reconnect returns registered == false we need to go back to doozer
-      @registered = service_handshake['registered']
-      @client_id = service_handshake['clientid']
-
-      # Send blank ClientHandshake
-      client_handshake = { 'clientid' => @client_id }
-      @logger.debug "Sending Client Handshake"
-      @logger.trace 'Client Handshake', client_handshake
-      @socket.send(BSON.serialize(client_handshake))
-
     end
 
     # Performs a synchronous call to the Skynet Service

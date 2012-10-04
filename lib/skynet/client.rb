@@ -59,7 +59,7 @@ module Skynet
 
       # #TODO When a reconnect returns registered == false we need to go back to doozer
       @registered = service_handshake['registered']
-      @client_id = service_handshake['clientid'] # We must use the clientid provided by the handshake
+      @client_id = service_handshake['clientid']
 
       # Send blank ClientHandshake
       client_handshake = { 'clientid' => @client_id }
@@ -91,76 +91,84 @@ module Skynet
       #
       # The second part is the BSON serialized object to pass to the above service
       #
-      @logger.benchmark_info "Called Skynet Service: #{@service_name}.#{method_name}" do
+      request_id = BSON::ObjectId.new.to_s
+      @logger.tagged request_id do
+        @logger.benchmark_info "Called Skynet Service: #{@service_name}.#{method_name}" do
 
-        # Resilient Send
-        @socket.retry_on_connection_failure do |socket|
-          # user_data is maintained per session and a different session could
-          # be supplied with each retry
-          socket.user_data ||= 0
-          header = {
-            'servicemethod' => "#{@service_name}.Forward",
-            'seq'           => socket.user_data,
-          }
-          @logger.debug "Sending Header"
-          @logger.trace 'Header', header
-          socket.send(BSON.serialize(header))
+          # Resilient Send
+          retry_count = 0
+          @socket.retry_on_connection_failure do |socket|
+            # user_data is maintained per session and a different session could
+            # be supplied with each retry
+            socket.user_data ||= 0
+            header = {
+              'servicemethod' => "#{@service_name}.Forward",
+              'seq'           => socket.user_data,
+            }
+            @logger.debug "Sending Header"
+            @logger.trace 'Header', header
+            socket.send(BSON.serialize(header))
 
+            @logger.trace 'Parameters:', parameters
 
-          @logger.trace 'In', parameters
+            # TODO: The request is actually a wrapper object, with the parameters
+            # sent in the "in" field, which must by a byte array
+            body = {
+              'clientid'    => @client_id,
+              'in'          => BSON.serialize(parameters).to_s,
+              'method'      => method_name,
+              'requestinfo' => {
+                'requestid'     => request_id,
+                # Increment retry count to indicate that the request may have been tried previously
+                # TODO: this should be incremented if request is retried,
+                'retrycount'    => retry_count,
+                # TODO: this should be forwarded along in case of services also
+                # being a client and calling additional services. If empty it will
+                # be stuffed with connecting address
+                'originaddress' => ''
+              }
+            }
 
-          # TODO: The request is actaully a wrapper object, with the paramters sent in the "in" field, which must by a byte array
-          body = {
-          'clientid'      => @client_id,
-          'in'            => BSON.serialize(parameters).to_s,
-          'method'        => method_name,
-          'requestinfo'   => {
-                                'requestid' => BSON::ObjectId.new.to_s,
-                                'retrycount' => 0, # TODO: this should be incremented if request is retried,
-                                'originaddress' => '' # TODO: this should be forwarded along in case of services also being a client and calling additional services. If empty it will be stuffed with connecting address
-                             }
-          }
+            @logger.debug "Sending Body"
+            @logger.trace 'Body', body
+            socket.send(BSON.serialize(body))
+          end
 
-          @logger.debug "Sending Body"
-          @logger.trace 'Body', body
-          socket.send(BSON.serialize(body))
+          # Once send is successful it could have been processed, so we can no
+          # longer retry now otherwise we could create a duplicate
+          # retry_count += 1
+
+          # #<BSON::OrderedHash:0x97ac8 {"servicemethod"=>"CSPIDFService.Process", "seq"=>414, "error"=>""}>
+          @logger.debug "Reading header from server"
+          header = self.class.read_bson_document(@socket)
+          @logger.debug 'Header', header
+
+          @logger.debug "Reading body from server"
+          response = self.class.read_bson_document(@socket)
+          @logger.trace 'Response', response
+
+          # Ensure the sequence number in the response header matches the
+          # sequence number sent in the request
+          if seq_no = header['seq']
+            raise ProtocolError.new("Incorrect Response received, expected seq=#{@socket.user_data}, received: #{header.inspect}") if seq_no != @socket.user_data
+          else
+            raise ProtocolError.new("Invalid Response header, missing 'seq': #{header.inspect}")
+          end
+
+          # If an error is returned convert it to a ServerError exception
+          if error = header['error']
+            raise SkynetException.new(error) if error.to_s.length > 0
+          end
+
+          # Increment Sequence number only on successful response
+          @socket.user_data += 1
+
+          # Return Value
+          # The return value is inside the response object, it's a byte array of it's own and needs to be deserialized
+          result = BSON.deserialize(response['out'])
+          @logger.trace 'Return Value', result
+          result
         end
-
-        # Once send is successful it could have been processed, so we can no
-        # longer retry now otherwise we could create a duplicate
-
-        # #<BSON::OrderedHash:0x97ac8 {"servicemethod"=>"CSPIDFService.Process", "seq"=>414, "error"=>""}>
-        @logger.debug "Reading header from server"
-        header = self.class.read_bson_document(@socket)
-        @logger.debug 'Header', header
-
-        @logger.debug "Reading body from server"
-        response = self.class.read_bson_document(@socket)
-        @logger.trace 'Response', response
-
-        # Ensure the sequence number in the response header matches the
-        # sequence number sent in the request
-        if seq_no = header['seq']
-          raise ProtocolError.new("Incorrect Response received, expected seq=#{@socket.user_data}, received: #{header.inspect}") if seq_no != @socket.user_data
-        else
-          raise ProtocolError.new("Invalid Response header, missing 'seq': #{header.inspect}")
-        end
-
-        # If an error is returned convert it to a ServerError exception
-        if error = header['error']
-          raise SkynetException.new(error) if error.to_s.length > 0
-        end
-
-        # Increment Sequence number only on successful response
-        @socket.user_data += 1
-
-
-        # Return Value
-        # TODO: The actual value is inside the main object, it's a byte array of it's own and needs to be deserialized
-        out = BSON.deserialize(response['out'])
-        @logger.trace 'Return Value', out
-
-        out
       end
     end
 

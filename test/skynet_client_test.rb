@@ -18,7 +18,7 @@ class SkynetClientTest < Test::Unit::TestCase
     context "without server" do
       should "raise exception when cannot reach server after 5 retries" do
         exception = assert_raise ResilientSocket::ConnectionFailure do
-          ResilientSocket::TCPClient.new(
+          Skynet::Client.new('SomeService',
             :server                 => 'localhost:3300',
             :connect_retry_interval => 0.1,
             :connect_retry_count    => 5)
@@ -30,6 +30,7 @@ class SkynetClientTest < Test::Unit::TestCase
 
     context "with server" do
       setup do
+        @read_timeout = 3.0
         @server = SimpleServer.new(2000)
         @server_name = 'localhost:2000'
       end
@@ -40,16 +41,15 @@ class SkynetClientTest < Test::Unit::TestCase
 
       context "using blocks" do
         should "call server" do
-          Skynet::Client.connect('TutorialService') do |tutorial_service|
-            assert_equal 'test1', tutorial_service.call('action' => 'test1')['result']
+          Skynet::Client.connect('TutorialService', :read_timeout => @read_timeout, :server => @server_name) do |tutorial_service|
+            assert_equal 'test1', tutorial_service.call(:test1, 'some' => 'parameters')['result']
           end
         end
       end
 
       context "with client connection" do
         setup do
-          @read_timeout = 3.0
-          @client = Skynet::Client.new('TutorialService')
+          @client = Skynet::Client.new('TutorialService', :read_timeout => @read_timeout, :server => @server_name)
         end
 
         def teardown
@@ -57,35 +57,21 @@ class SkynetClientTest < Test::Unit::TestCase
         end
 
         should "successfully send and receive data" do
-          request = { 'action' => 'test1' }
-          reply = @client.call(request)
+          reply = @client.call(:test1, 'some' => 'parameters')
           assert_equal 'test1', reply['result']
         end
 
         should "timeout on receive" do
-          request = { 'action' => 'sleep', 'duration' => @read_timeout + 0.5}
+          request = { 'duration' => @read_timeout + 0.5}
 
           exception = assert_raise ResilientSocket::ReadTimeout do
             # Read 4 bytes from server
-            @client.call(request)
+            @client.call('sleep', request)
           end
           assert_match /Timedout after #{@read_timeout} seconds trying to read/, exception.message
         end
 
-#        should "retry on connection failure" do
-#          attempt = 0
-#          reply = @client.retry_on_connection_failure do
-#            request = { 'action' => 'fail', 'attempt' => (attempt+=1) }
-#            @client.send(BSON.serialize(request))
-#            # Note: Do not put the read in this block if it should never send the
-#            #       same request twice to the server
-#            read_bson_document(@client)
-#          end
-#          assert_equal 'fail', reply['result']
-#        end
-
       end
     end
-
   end
 end

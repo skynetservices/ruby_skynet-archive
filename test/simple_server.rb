@@ -59,21 +59,21 @@ class SimpleServer
 
   # Called for each message received from the client
   # Returns a Hash that is sent back to the caller
-  def on_message(message)
-    case message['action']
+  def on_message(method, params)
+    case method
     when 'test1'
       { 'result' => 'test1' }
     when 'sleep'
-      sleep message['duration'] || 1
+      sleep params['duration'] || 1
       { 'result' => 'sleep' }
     when 'fail'
-      if message['attempt'].to_i >= 2
+      if params['attempt'].to_i >= 2
         { 'result' => 'fail' }
       else
         nil
       end
     else
-      { 'result' => "Unknown action: #{message['action']}" }
+      { 'result' => "Unknown method: #{method}" }
     end
   end
 
@@ -81,6 +81,14 @@ class SimpleServer
   # In a real server each request would be handled in a separate thread
   def on_request(client)
     @logger.debug "Client connected, waiting for data from client"
+
+    # Process handshake
+    handshake = {
+      'registered' => true,
+      'clientid' => '123'
+    }
+    client.print(BSON.serialize(handshake))
+    read_bson_document(client)
 
     while(header = read_bson_document(client)) do
       @logger.debug "\n******************"
@@ -91,14 +99,14 @@ class SimpleServer
       @logger.trace 'Request', request
       break unless request
 
-      if reply = on_message(request)
+      if reply = on_message(request['method'], BSON.deserialize(request['in']))
         @logger.debug "Sending Header"
         # For this test we just send back the received header
         client.print(BSON.serialize(header))
 
         @logger.debug "Sending Reply"
         @logger.trace 'Reply', reply
-        client.print(BSON.serialize(reply))
+        client.print(BSON.serialize({'out' => BSON.serialize(reply).to_s}))
       else
         @logger.debug "Closing client since no reply is being sent back"
         @server.close

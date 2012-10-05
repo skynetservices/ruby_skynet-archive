@@ -19,55 +19,93 @@ module Skynet
     #  Skynet::Client.connect('TutorialService') do |tutorial_service|
     #    p tutorial_service.call(:value => 5)
     #  end
-    def self.connect(service_name)
+    def self.connect(service_name, params={})
       begin
-        client = self.new(service_name)
+        client = self.new(service_name, params)
         yield(client)
       ensure
         client.close if client
       end
     end
 
-    def initialize(service_name)
+    # Returns a new Skynet Client for the named service
+    #
+    # Parameters:
+    #   :service_name
+    #     Name of the service to look for and connect to on Skynet
+    #
+    #   :doozer_servers [Array of String]
+    #     Array of URL's of doozer servers to connect to with port numbers
+    #     ['server1:2000', 'server2:2000']
+    #
+    #     The second server will only be attempted once the first server
+    #     cannot be connected to or has timed out on connect
+    #     A read failure or timeout will not result in switching to the second
+    #     server, only a connection failure or during an automatic reconnect
+    #
+    #   :read_timeout [Float]
+    #     Time in seconds to timeout on read
+    #     Can be overridden by supplying a timeout in the read call
+    #     Default: 60
+    #
+    #   :connect_timeout [Float]
+    #     Time in seconds to timeout when trying to connect to the server
+    #     Default: Half of the :read_timeout ( 30 seconds )
+    #
+    #   :connect_retry_count [Fixnum]
+    #     Number of times to retry connecting when a connection fails
+    #     Default: 10
+    #
+    #   :connect_retry_interval [Float]
+    #     Number of seconds between connection retry attempts after the first failed attempt
+    #     Default: 0.5
+    def initialize(service_name, params = {})
       @service_name = service_name
       @logger = SemanticLogger::Logger.new("#{self.class.name}: #{service_name}")
 
-      @socket = ResilientSocket::TCPClient.new(
-        :server                 => 'localhost:9000',
-        # Disable buffering the send since it is a RPC call
-        :buffered               => false,
-        :read_timeout           => 60,
-        :connect_timeout        => 30,
-        :connect_retry_interval => 0.1,
-        :connect_retry_count    => 5,
-        # As soon as a connection is established, this block is called
-        # to perform any initialization, authentication, and/or handshake
-        :on_connect             => Proc.new do |socket|
-          # Reset user_data on each connection
-          socket.user_data = 0
+      # User configurable options
+      params[:read_timeout]           ||= 60
+      params[:connect_timeout]        ||= 30
+      params[:connect_retry_interval] ||= 0.1
+      params[:connect_retry_count]    ||= 5
 
-          # Receive Service Handshake
-          # Registered bool
-          #   Registered indicates the state of this service. If it is false, the connection will
-          #   close immediately and the client should look elsewhere for this service.
-          #
-          # ClientID string
-          #   ClientID is a UUID that is used by the client to identify itself in RPC requests.
-          @logger.debug "Waiting for Service Handshake"
-          service_handshake = self.class.read_bson_document(socket)
-          @logger.trace 'Service Handshake', service_handshake
+      # Server name and port where Skynet Service is running
+      # #TODO Look this up in doozer config
+      params[:server] ||= 'localhost:9000'
 
-          # #TODO When a reconnect returns registered == false we need to go back to doozer
-          @registered = service_handshake['registered']
-          @client_id = service_handshake['clientid']
+      # Disable buffering the send since it is a RPC call
+      params[:buffered] = false
 
-          # Send blank ClientHandshake
-          client_handshake = { 'clientid' => @client_id }
-          @logger.debug "Sending Client Handshake"
-          @logger.trace 'Client Handshake', client_handshake
-          socket.send(BSON.serialize(client_handshake))
-        end
-      )
+      @logger.trace "Socket Connection parameters", params
+
+      # For each new connection perform the Skynet handshake
+      params[:on_connect] = Proc.new do |socket|
+        # Reset user_data on each connection
+        socket.user_data = 0
+
+        # Receive Service Handshake
+        # Registered bool
+        #   Registered indicates the state of this service. If it is false, the connection will
+        #   close immediately and the client should look elsewhere for this service.
+        #
+        # ClientID string
+        #   ClientID is a UUID that is used by the client to identify itself in RPC requests.
+        @logger.debug "Waiting for Service Handshake"
+        service_handshake = self.class.read_bson_document(socket)
+        @logger.trace 'Service Handshake', service_handshake
+
+        # #TODO When a reconnect returns registered == false we need to go back to doozer
+        @registered = service_handshake['registered']
+        @client_id = service_handshake['clientid']
+
+        # Send blank ClientHandshake
+        client_handshake = { 'clientid' => @client_id }
+        @logger.debug "Sending Client Handshake"
+        @logger.trace 'Client Handshake', client_handshake
+        socket.send(BSON.serialize(client_handshake))
+      end
+
+      @socket = ResilientSocket::TCPClient.new(params)
     end
 
     # Performs a synchronous call to the Skynet Service
@@ -112,12 +150,12 @@ module Skynet
 
             @logger.trace 'Parameters:', parameters
 
-            # TODO: The request is actually a wrapper object, with the parameters
-            # sent in the "in" field, which must by a byte array
-            body = {
+            # The parameters are placed in the request object in BSON serialized
+            # form
+            request = {
               'clientid'    => @client_id,
               'in'          => BSON.serialize(parameters).to_s,
-              'method'      => method_name,
+              'method'      => method_name.to_s,
               'requestinfo' => {
                 'requestid'     => request_id,
                 # Increment retry count to indicate that the request may have been tried previously
@@ -130,21 +168,22 @@ module Skynet
               }
             }
 
-            @logger.debug "Sending Body"
-            @logger.trace 'Body', body
-            socket.send(BSON.serialize(body))
+            @logger.debug "Sending Request"
+            @logger.trace 'Request', request
+            socket.send(BSON.serialize(request))
           end
 
           # Once send is successful it could have been processed, so we can no
           # longer retry now otherwise we could create a duplicate
           # retry_count += 1
 
-          # #<BSON::OrderedHash:0x97ac8 {"servicemethod"=>"CSPIDFService.Process", "seq"=>414, "error"=>""}>
+          # Read header first as a separate BSON document
           @logger.debug "Reading header from server"
           header = self.class.read_bson_document(@socket)
           @logger.debug 'Header', header
 
-          @logger.debug "Reading body from server"
+          # Read the BSON response document
+          @logger.debug "Reading response from server"
           response = self.class.read_bson_document(@socket)
           @logger.trace 'Response', response
 

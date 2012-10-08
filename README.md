@@ -16,7 +16,7 @@ RubySkynet::Client.connect('TutorialService') do |tutorial_service|
 end
 ```
 
-For details on installing and running the Tutorial Service:
+For details on installing and running the Tutorial Service: https://github.com/bketelsen/skynet/wiki/Service-Tutorial
 
 ### Logging
 
@@ -38,13 +38,13 @@ end
 
 ruby_skynet implements its own doozer client which has been tested against
 the doozer fork: https://github.com/4ad/doozerd.
-The doozer client uses the active ruby_protobuf project for marshaling data
-for communicating with doozer
+The doozer client uses the active [ruby_protobuf](https://github.com/macks/ruby-protobuf)
+project for marshaling data for communicating with doozer
 
 ### Dependencies
 
 - Ruby MRI 1.8.7 (or above), Ruby 1.9.3,  Or JRuby 1.6.3 (or above)
-- [SemanticLogger](http://github.com/ClarityServices/semantic-logger)
+- [SemanticLogger](http://github.com/ClarityServices/semantic_logger)
 - [ResilientSocket](http://github.com/ClarityServices/ruby_skynet)
 - [ruby_protobuf](https://github.com/macks/ruby-protobuf)
 - [multi_json](https://github.com/intridea/multi_json)
@@ -64,7 +64,7 @@ for communicating with doozer
 Development
 -----------
 
-Want to contribute to Resilient Socket?
+Want to contribute to Ruby Skynet?
 
 First clone the repo and run the tests:
 
@@ -90,7 +90,6 @@ Meta
 
 * Code: `git clone git://github.com/ClarityServices/ruby_skynet.git`
 * Home: <https://github.com/ClarityServices/ruby_skynet>
-* Docs: TODO <http://ClarityServices.github.com/ruby_skynet/>
 * Bugs: <http://github.com/reidmorrison/ruby_skynet/issues>
 * Gems: <http://rubygems.org/gems/ruby_skynet>
 

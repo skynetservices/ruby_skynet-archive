@@ -3,19 +3,19 @@ require 'sync_attr'
 require 'multi_json'
 
 #
-# Skynet Client
+# RubySkynet Client
 #
 # Supports
 #   RPC calls to Skynet
 #   Skynet Service autodiscovery
 #
-module Skynet
+module RubySkynet
   class Client
     include SyncAttr
 
     # Default doozer configuration
     # To replace this default, set the config as follows:
-    #    Skynet::Client.doozer_config = { .... }
+    #    RubySkynet::Client.doozer_config = { .... }
     sync_attr_accessor :doozer_config do
       {
         :server                 => '127.0.0.1:8046',
@@ -36,10 +36,10 @@ module Skynet
     #
     # Example
     #
-    #  require 'skynet'
+    #  require 'ruby_skynet'
     #  SemanticLogger.default_level = :trace
     #  SemanticLogger.appenders << SemanticLogger::Appender::File(STDOUT)
-    #  Skynet::Client.connect('TutorialService') do |tutorial_service|
+    #  RubySkynet::Client.connect('TutorialService') do |tutorial_service|
     #    p tutorial_service.call(:value => 5)
     #  end
     def self.connect(service_name, params={})
@@ -51,7 +51,7 @@ module Skynet
       end
     end
 
-    # Returns a new Skynet Client for the named service
+    # Returns a new RubySkynet Client for the named service
     #
     # Parameters:
     #   :service_name
@@ -143,8 +143,8 @@ module Skynet
     #
     # Returns the Hash result returned from the Skynet Service
     #
-    # Raises Skynet::ProtocolError
-    # Raises Skynet::SkynetException
+    # Raises RubySkynet::ProtocolError
+    # Raises RubySkynet::SkynetException
     def call(method_name, parameters)
       # Skynet requires BSON RPC Calls to have the following format:
       # https://github.com/bketelsen/skynet/blob/protocol/protocol.md

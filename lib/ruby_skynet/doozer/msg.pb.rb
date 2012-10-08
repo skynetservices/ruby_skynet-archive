@@ -63,7 +63,7 @@ require 'protobuf/message/enum'
 require 'protobuf/message/service'
 require 'protobuf/message/extend'
 
-module Skynet
+module RubySkynet
   module Doozer
     class Request < ::Protobuf::Message
       defined_in __FILE__

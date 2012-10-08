@@ -5,20 +5,20 @@ $LOAD_PATH.unshift File.dirname(__FILE__)
 require 'rubygems'
 require 'test/unit'
 require 'shoulda'
-require 'skynet'
+require 'ruby_skynet'
 require 'simple_server'
 
 SemanticLogger::Logger.default_level = :trace
 SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 
 # Unit Test for ResilientSocket::TCPClient
-class SkynetClientTest < Test::Unit::TestCase
-  context Skynet::Client do
+class RubySkynetClientTest < Test::Unit::TestCase
+  context RubySkynet::Client do
 
     context "without server" do
       should "raise exception when cannot reach server after 5 retries" do
         exception = assert_raise ResilientSocket::ConnectionFailure do
-          Skynet::Client.new('SomeService',
+          RubySkynet::Client.new('SomeService',
             :server                 => 'localhost:3300',
             :connect_retry_interval => 0.1,
             :connect_retry_count    => 5)
@@ -41,7 +41,7 @@ class SkynetClientTest < Test::Unit::TestCase
 
       context "using blocks" do
         should "call server" do
-          Skynet::Client.connect('TutorialService', :read_timeout => @read_timeout, :server => @server_name) do |tutorial_service|
+          RubySkynet::Client.connect('TutorialService', :read_timeout => @read_timeout, :server => @server_name) do |tutorial_service|
             assert_equal 'test1', tutorial_service.call(:test1, 'some' => 'parameters')['result']
           end
         end
@@ -49,7 +49,7 @@ class SkynetClientTest < Test::Unit::TestCase
 
       context "with client connection" do
         setup do
-          @client = Skynet::Client.new('TutorialService', :read_timeout => @read_timeout, :server => @server_name)
+          @client = RubySkynet::Client.new('TutorialService', :read_timeout => @read_timeout, :server => @server_name)
         end
 
         def teardown

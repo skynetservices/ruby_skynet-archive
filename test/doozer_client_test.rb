@@ -4,7 +4,7 @@ $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'rubygems'
 require 'test/unit'
 require 'shoulda'
-require 'skynet/doozer/client'
+require 'ruby_skynet/doozer/client'
 
 SemanticLogger::Logger.default_level = :trace
 SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
@@ -12,14 +12,14 @@ SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log
 # NOTE:
 # This test assumes that doozerd is running locally on the default port of 8046
 
-# Unit Test for Skynet::Doozer::Client
+# Unit Test for RubySkynet::Doozer::Client
 class DoozerClientTest < Test::Unit::TestCase
-  context Skynet::Doozer::Client do
+  context RubySkynet::Doozer::Client do
 
     context "without server" do
       should "raise exception when cannot reach doozer server after 5 retries" do
         exception = assert_raise ResilientSocket::ConnectionFailure do
-          Skynet::Doozer::Client.new(
+          RubySkynet::Doozer::Client.new(
             # Bad server address to test exception is raised
             :server                 => 'localhost:9999',
             :connect_retry_interval => 0.1,
@@ -32,7 +32,7 @@ class DoozerClientTest < Test::Unit::TestCase
 
     context "with client connection" do
       setup do
-        @client = Skynet::Doozer::Client.new(:server => 'localhost:8046')
+        @client = RubySkynet::Doozer::Client.new(:server => 'localhost:8046')
       end
 
       def teardown

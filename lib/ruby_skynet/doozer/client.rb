@@ -1,10 +1,10 @@
-require 'skynet/doozer/msg.pb'
+require 'ruby_skynet/doozer/msg.pb'
 require 'semantic_logger'
 require 'resilient_socket'
-require 'skynet/doozer/exceptions'
-require 'skynet/doozer/msg.pb'
+require 'ruby_skynet/doozer/exceptions'
+require 'ruby_skynet/doozer/msg.pb'
 
-module Skynet
+module RubySkynet
   module Doozer
     class Client
 
@@ -92,7 +92,7 @@ module Skynet
       def directory(path, offset = 0, rev = nil)
         begin
           invoke(Request.new(:path => path, :rev => rev, :offset => offset, :verb => Request::Verb::GETDIR))
-        rescue Skynet::Doozer::ResponseError => exc
+        rescue RubySkynet::Doozer::ResponseError => exc
           raise exc unless exc.message.include?('RANGE')
           nil
         end

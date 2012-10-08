@@ -5,26 +5,25 @@ require 'rubygems'
 require 'rake/clean'
 require 'rake/testtask'
 require 'date'
-require 'skynet/version'
+require 'ruby_skynet/version'
 
 desc "Build gem"
 task :gem  do |t|
   gemspec = Gem::Specification.new do |spec|
-    spec.name        = 'skynet'
-    spec.version     = ResilientSocket::VERSION
+    spec.name        = 'ruby_skynet'
+    spec.version     = RubySkynet::VERSION
     spec.platform    = Gem::Platform::RUBY
     spec.authors     = ['Reid Morrison']
     spec.email       = ['reidmo@gmail.com']
     spec.homepage    = 'https://github.com/ClarityServices/ruby_skynet'
     spec.date        = Date.today.to_s
-    spec.summary     = "Ruby Client and Server into Skynet"
-    spec.description = "Ruby Client and Server into Skynet"
+    spec.summary     = "Skynet Ruby Client"
+    spec.description = "Ruby Client for invoking Skynet services"
     spec.files       = FileList["./**/*"].exclude('*.gem', 'nbproject').map{|f| f.sub(/^\.\//, '')}
     spec.has_rdoc    = true
     spec.add_dependency 'semantic_logger'
     spec.add_dependency 'resilient_socket'
-    spec.add_dependency 'gene_pool'
-    spec.add_dependency 'fraggle'
+    spec.add_dependency 'multi_json'
     spec.add_dependency 'bson'
   end
   Gem::Builder.new(gemspec).build

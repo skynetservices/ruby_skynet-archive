@@ -1,3 +1,7 @@
+require 'bson'
+require 'sync_attr'
+require 'multi_json'
+
 #
 # Skynet Client
 #
@@ -7,6 +11,25 @@
 #
 module Skynet
   class Client
+    include SyncAttr
+
+    # Default doozer configuration
+    # To replace this default, set the config as follows:
+    #    Skynet::Client.doozer_config = { .... }
+    sync_attr_accessor :doozer_config do
+      {
+        :server                 => '127.0.0.1:8046',
+        :read_timeout           => 5,
+        :connect_timeout        => 3,
+        :connect_retry_interval => 0.1,
+        :connect_retry_count    => 3
+      }
+    end
+
+    # Lazy initialize Doozer Client
+    sync_cattr_reader :doozer do
+      Doozer::Client.new
+    end
 
     # Create a client connection, call the supplied block and close the connection on
     # completion of the block
@@ -69,9 +92,11 @@ module Skynet
       params[:connect_retry_interval] ||= 0.1
       params[:connect_retry_count]    ||= 5
 
-      # Server name and port where Skynet Service is running
-      # #TODO Look this up in doozer config
-      params[:server] ||= 'localhost:9000'
+      # If Server name and port of where Skynet Service is running
+      # is not supplied look for it in Doozer
+      unless params[:server] || params[:servers]
+        params[:server] = self.class.server_for(service_name)
+      end
 
       # Disable buffering the send since it is a RPC call
       params[:buffered] = false
@@ -122,14 +147,7 @@ module Skynet
     # Raises Skynet::SkynetException
     def call(method_name, parameters)
       # Skynet requires BSON RPC Calls to have the following format:
-      # The message consists of 2 distinct BSON messages, the first is the header:
-      #   header = {
-      #     'servicemethod' =>'ServiceToCall',
-      #     'seq'           => 'sequence number of RPC call per TCP session'
-      #   }
-      #
-      # The second part is the BSON serialized object to pass to the above service
-      #
+      # https://github.com/bketelsen/skynet/blob/protocol/protocol.md
       request_id = BSON::ObjectId.new.to_s
       @logger.tagged request_id do
         @logger.benchmark_info "Called Skynet Service: #{@service_name}.#{method_name}" do
@@ -195,13 +213,18 @@ module Skynet
             raise ProtocolError.new("Invalid Response header, missing 'seq': #{header.inspect}")
           end
 
-          # If an error is returned convert it to a ServerError exception
+          # Increment Sequence number only on successful response
+          @socket.user_data += 1
+
+          # If an error is returned from Skynet raise a Skynet exception
           if error = header['error']
             raise SkynetException.new(error) if error.to_s.length > 0
           end
 
-          # Increment Sequence number only on successful response
-          @socket.user_data += 1
+          # If an error is returned from the service raise a Service exception
+          if error = response['error']
+            raise ServiceException.new(error) if error.to_s.length > 0
+          end
 
           # Return Value
           # The return value is inside the response object, it's a byte array of it's own and needs to be deserialized
@@ -239,6 +262,31 @@ module Skynet
 
     def close()
       @socket.close
+    end
+
+    ##############################
+    #protected
+
+    # Returns [Array] of the hostname and port pair [String] that implements a particular service
+    # Performs a doozer lookup to find the servers
+    #
+    #   service_name:
+    #   version: Version of service to locate
+    #            Default: Find latest version
+    def self.registered_implementers(service_name, version = '*', region = 'Development')
+      hosts = []
+      doozer.walk("/services/#{service_name}/#{version}/#{region}/*/*").each do |node|
+        entry = MultiJson.load(node.value)
+        hosts << entry if entry['Registered']
+      end
+      hosts
+    end
+
+    # Randomly returns a server that implements the requested service
+    def self.server_for(service_name, version = '*', region = 'Development')
+      hosts = registered_implementers(service_name, version, region)
+      service = hosts[rand(hosts.size)]['Config']['ServiceAddr']
+      "#{service['IPAddress']}:#{service['Port']}"
     end
 
   end

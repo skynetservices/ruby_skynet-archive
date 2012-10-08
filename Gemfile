@@ -4,11 +4,10 @@ group :test do
   gem "shoulda"
 end
 
-gem "rake"
-gem "jruby-openssl", :platform => :jruby
 gem "semantic_logger"
 gem "resilient_socket"
-gem "gene_pool"
-gem "fraggle"
+# For looking up Service entries in Doozer
+gem "multi_json"
+# Wire format when communicating with services
 gem "bson"
 gem "bson_ext", :platform => :ruby

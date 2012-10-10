@@ -70,9 +70,9 @@ First clone the repo and run the tests:
 
     git clone git://github.com/ClarityServices/ruby_skynet.git
     cd ruby_skynet
-    jruby -S rake test
+    ruby -S rake test
 
-Feel free to ping the mailing list with any issues and we'll try to resolve it.
+Feel free to submit an issue and we'll try to resolve it.
 
 Contributing
 ------------
@@ -90,7 +90,7 @@ Meta
 
 * Code: `git clone git://github.com/ClarityServices/ruby_skynet.git`
 * Home: <https://github.com/ClarityServices/ruby_skynet>
-* Bugs: <http://github.com/reidmorrison/ruby_skynet/issues>
+* Bugs: <http://github.com/ClarityServices/ruby_skynet/issues>
 * Gems: <http://rubygems.org/gems/ruby_skynet>
 
 This project uses [Semantic Versioning](http://semver.org/).

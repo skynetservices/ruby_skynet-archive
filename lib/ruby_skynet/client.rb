@@ -127,7 +127,7 @@ module RubySkynet
         client_handshake = { 'clientid' => @client_id }
         @logger.debug "Sending Client Handshake"
         @logger.trace 'Client Handshake', client_handshake
-        socket.send(BSON.serialize(client_handshake))
+        socket.write(BSON.serialize(client_handshake))
       end
 
       @socket = ResilientSocket::TCPClient.new(params)
@@ -164,7 +164,7 @@ module RubySkynet
             }
             @logger.debug "Sending Header"
             @logger.trace 'Header', header
-            socket.send(BSON.serialize(header))
+            socket.write(BSON.serialize(header))
 
             @logger.trace 'Parameters:', parameters
 
@@ -188,7 +188,7 @@ module RubySkynet
 
             @logger.debug "Sending Request"
             @logger.trace 'Request', request
-            socket.send(BSON.serialize(request))
+            socket.write(BSON.serialize(request))
           end
 
           # Once send is successful it could have been processed, so we can no

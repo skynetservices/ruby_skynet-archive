@@ -23,7 +23,7 @@ class RubySkynetClientTest < Test::Unit::TestCase
             :connect_retry_interval => 0.1,
             :connect_retry_count    => 5)
         end
-        assert_match /After 5 attempts: Errno::ECONNREFUSED/, exception.message
+        assert_match /After 5 connection attempts to host 'localhost:3300': Errno::ECONNREFUSED/, exception.message
       end
 
     end

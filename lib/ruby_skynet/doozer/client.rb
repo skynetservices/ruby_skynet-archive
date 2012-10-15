@@ -178,7 +178,7 @@ module RubySkynet
         data = request.serialize_to_string
         # An additional header is added to the request indicating the size of the request
         head = [data.length].pack("N")
-        @socket.send(head+data)
+        @socket.write(head+data)
       end
 
       # Read the protobuf Response from Doozer

@@ -142,14 +142,29 @@ module RubySkynet
         end
       end
 
-      # TODO Implement watching for changes in a separate thread with it's own
-      #      client connection
-      #def watch(path, rev = nil)
-      #  invoke(Request.new(:path => secret, :verb => Request::Verb::WAIT))
-      #end
+      # Wait for changes to the supplied path
+      # Returns the next change to the supplied path
+      def wait(path, rev=current_revision, timeout=-1)
+        invoke(Request.new(:path => path, :rev => rev, :verb => Request::Verb::WAIT), true, timeout)
+      end
+
+      # Watch for any changes to the supplied path, calling the supplied block
+      # for every change
+      # Runs until an exception is thrown
+      #
+      # If a connection error occurs it will create a new connection to doozer
+      # and resubmit the wait. I.e. Will continue from where it left off
+      # without any noticeable effect to the supplied block
+      def watch(path, rev=current_revision)
+        loop do
+          result = wait(path, rev, -1)
+          yield result
+          rev = result.rev + 1
+        end
+      end
 
       #####################
-      # protected
+      #protected
 
       # Call the Doozer server
       #
@@ -158,16 +173,16 @@ module RubySkynet
       #   _only_ if a rev has been supplied
       #
       # When modifier is true
-      def invoke(request, readonly=true)
+      def invoke(request, readonly=true, timeout=nil)
         retry_read = readonly || !request.rev.nil?
         response = nil
         @socket.retry_on_connection_failure do
           send(request)
-          response = read if retry_read
+          response = read(timeout) if retry_read
         end
         # Network error on read must be sent back to caller since we do not
         # know if the modification was made
-        response = read unless retry_read
+        response = read(timeout) unless retry_read
         raise ResponseError.new("#{Response::Err.name_by_value(response.err_code)}: #{response.err_detail}") if response.err_code != 0
         response
       end
@@ -182,19 +197,11 @@ module RubySkynet
       end
 
       # Read the protobuf Response from Doozer
-      def read
+      def read(timeout=nil)
         # First strip the additional header indicating the size of the subsequent response
-        head = @socket.read(4)
+        head = @socket.read(4,nil,timeout)
         length = head.unpack("N")[0]
-
-        # Since can returns upto 'length' bytes we need to make sure it returns
-        # at least 'length' bytes
-        # TODO: Make this a binary buffer
-        data = ''
-        until data.size >= length
-          data << @socket.read(length)
-        end
-        Response.new.parse_from_string(data)
+        Response.new.parse_from_string(@socket.read(length))
       end
 
     end

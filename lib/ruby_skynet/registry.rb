@@ -16,7 +16,11 @@ module RubySkynet
     # Service Registry has the following format
     #  Key: [String] 'service_name/version/region'
     #  Value: [Array<String>] 'host:port', 'host:port'
-    @@service_registry = ThreadSafe::Hash.new
+    sync_cattr_accessor :service_registry do
+      start_monitoring
+    end
+
+    @@on_server_removed_callbacks = ThreadSafe::Hash.new
     @@monitor_thread = nil
 
     DOOZER_SERVICES_PATH = "/services/*/*/*/*/*"
@@ -107,21 +111,32 @@ module RubySkynet
         if version == '*'
           # Find the highest version for the named service in this region
           version = -1
-          @@service_registry.keys.each do |key|
+          service_registry.keys.each do |key|
             if match = key.match(/#{service_name}\/(\d+)\/#{region}/)
               ver = match[1].to_i
               version = ver if ver > version
             end
           end
         end
-        @@service_registry["#{service_name}/#{version}/#{region}"]
+        service_registry["#{service_name}/#{version}/#{region}"]
       end
     end
 
+    # Invokes registered callbacks when a specific server is shutdown or terminates
+    # Not when a server de-registers itself
+    # The callback will only be called once and will need to be re-registered
+    # after being called if future callbacks are required for that server
+    def self.on_server_removed(server, &block)
+      (@@on_server_removed_callbacks[server] ||= ThreadSafe::Array.new) << block
+    end
+
+    ############################
+    protected
+
     # Fetch the all registry information from Doozer and set the internal registry
     # Also starts the monitoring thread to keep the registry up to date
-    def self.load_registry!
-      @@service_registry.clear
+    def self.start_monitoring
+      registry = ThreadSafe::Hash.new
       revision = doozer.current_revision
       doozer.walk(DOOZER_SERVICES_PATH, revision).each do |node|
         # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
@@ -135,21 +150,19 @@ module RubySkynet
           entry = MultiJson.load(node.value)
           if entry['Registered']
             # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (@@service_registry[key] ||= ThreadSafe::Array.new)
+            servers = (registry[key] ||= ThreadSafe::Array.new)
             servers << server unless servers.include?(server)
             logger.trace "#monitor Add/Update Service: #{key} => #{server}"
           end
         end
       end
       # Start monitoring thread to keep the registry up to date
-      @@monitor_thread = Thread.new { monitor(revision + 1) }
-      @@service_registry
+      @@monitor_thread = Thread.new { watch(revision + 1) }
+      registry
     end
 
-    # Start the registry monitoring thread
-    #
-    #  Waits for any updates from Doozer and updates the internal service registry
-    def self.monitor(revision)
+    # Waits for any updates from Doozer and updates the internal service registry
+    def self.watch(revision)
       logger.info "Start monitoring #{DOOZER_SERVICES_PATH}"
       doozer.watch(DOOZER_SERVICES_PATH, revision) do |node|
         # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
@@ -163,28 +176,42 @@ module RubySkynet
           entry = MultiJson.load(node.value)
           if entry['Registered']
             # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (@@service_registry[key] ||= ThreadSafe::Array.new)
+            servers = (service_registry[key] ||= ThreadSafe::Array.new)
             servers << server unless servers.include?(server)
             logger.trace "#monitor Add/Update Service: #{key} => #{server}"
           else
             logger.trace "#monitor Service deregistered, remove: #{key} => #{server}"
-            if @@service_registry[key]
-              @@service_registry[key].delete(server)
-              @@service_registry.delete(key) if @@service_registry[key].size == 0
+            if service_registry[key]
+              service_registry[key].delete(server)
+              service_registry.delete(key) if service_registry[key].size == 0
             end
           end
         else
           # Service has stopped and needs to be removed
           logger.trace "#monitor Service stopped, remove: #{key} => #{server}"
-          if @@service_registry[key]
-            @@service_registry[key].delete(server)
-            @@service_registry.delete(key) if @@service_registry[key].size == 0
+          if service_registry[key]
+            service_registry[key].delete(server)
+            service_registry.delete(key) if service_registry[key].size == 0
+            server_removed(server)
           end
         end
-        logger.trace "Updated registry", @@service_registry
+        logger.trace "Updated registry", service_registry
       end
     ensure
       logger.info "Stopped monitoring"
+    end
+
+    # Invoke any registered callbacks for the specific server
+    def self.server_removed(server)
+      if callbacks = @@on_server_removed_callbacks.delete(server)
+        callbacks.each do |block|
+          begin
+            block.call(server)
+          rescue Exception => exc
+            logger.error "Exception during a callback for server: #{server}", exc
+          end
+        end
+      end
     end
 
   end

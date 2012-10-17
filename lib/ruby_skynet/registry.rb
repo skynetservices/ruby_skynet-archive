@@ -67,7 +67,19 @@ module RubySkynet
 
     # Logging instance for this class
     sync_cattr_reader :logger do
-      SemanticLogger::Logger.new(self)
+      SemanticLogger::Logger.new(self, :debug)
+    end
+
+    # Return a server that implements the specified service
+    def self.server_for(service_name, version='*', region='Development')
+      if servers = servers_for(service_name, version, region)
+        # Randomly select one of the servers offering the service
+        servers[rand(servers.size)]
+      else
+        msg = "No servers available for service: #{service_name} with version: #{version} in region: #{region}"
+        logger.warn msg
+        raise ServiceUnavailable.new(msg)
+      end
     end
 
     # Returns [Array] of the hostname and port pair [String] that implements a particular service
@@ -152,7 +164,7 @@ module RubySkynet
             # Value: [Array<String>] 'host:port', 'host:port'
             servers = (registry[key] ||= ThreadSafe::Array.new)
             servers << server unless servers.include?(server)
-            logger.trace "#monitor Add/Update Service: #{key} => #{server}"
+            logger.debug "#monitor Add/Update Service: #{key} => #{server}"
           end
         end
       end
@@ -176,27 +188,30 @@ module RubySkynet
           entry = MultiJson.load(node.value)
           if entry['Registered']
             # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (service_registry[key] ||= ThreadSafe::Array.new)
+            servers = (@@service_registry[key] ||= ThreadSafe::Array.new)
             servers << server unless servers.include?(server)
-            logger.trace "#monitor Add/Update Service: #{key} => #{server}"
+            logger.debug "#monitor Add/Update Service: #{key} => #{server}"
           else
-            logger.trace "#monitor Service deregistered, remove: #{key} => #{server}"
-            if service_registry[key]
-              service_registry[key].delete(server)
-              service_registry.delete(key) if service_registry[key].size == 0
+            logger.debug "#monitor Service deregistered, remove: #{key} => #{server}"
+            if @@service_registry[key]
+              @@service_registry[key].delete(server)
+              @@service_registry.delete(key) if @@service_registry[key].size == 0
             end
           end
         else
           # Service has stopped and needs to be removed
-          logger.trace "#monitor Service stopped, remove: #{key} => #{server}"
-          if service_registry[key]
-            service_registry[key].delete(server)
-            service_registry.delete(key) if service_registry[key].size == 0
+          logger.debug "#monitor Service stopped, remove: #{key} => #{server}"
+          if @@service_registry[key]
+            @@service_registry[key].delete(server)
+            @@service_registry.delete(key) if @@service_registry[key].size == 0
             server_removed(server)
           end
         end
-        logger.trace "Updated registry", service_registry
+        logger.debug "Updated registry", @@service_registry
       end
+      logger.info "Stopping monitoring thread normally"
+    rescue Exception => exc
+      logger.error "Exception in monitoring thread", exc
     ensure
       logger.info "Stopped monitoring"
     end
@@ -206,9 +221,10 @@ module RubySkynet
       if callbacks = @@on_server_removed_callbacks.delete(server)
         callbacks.each do |block|
           begin
+            logger.info "Calling callback for server: #{server}"
             block.call(server)
           rescue Exception => exc
-            logger.error "Exception during a callback for server: #{server}", exc
+            logger.error("Exception during a callback for server: #{server}", exc)
           end
         end
       end

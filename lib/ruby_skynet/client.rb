@@ -54,7 +54,7 @@ module RubySkynet
     #
     # Raises RubySkynet::ProtocolError
     # Raises RubySkynet::SkynetException
-    def call(method_name, parameters)
+    def call(method_name, parameters, connection_params={})
       # Skynet requires BSON RPC Calls to have the following format:
       # https://github.com/bketelsen/skynet/blob/protocol/protocol.md
       request_id = BSON::ObjectId.new.to_s
@@ -63,7 +63,7 @@ module RubySkynet
           retries = 0
           # If it cannot connect to a server, try a different server
           begin
-            Connection.with_connection(Registry.server_for(@service_name, @version, @region)) do |connection|
+            Connection.with_connection(Registry.server_for(@service_name, @version, @region), connection_params) do |connection|
               connection.rpc_call(request_id, @service_name, method_name, parameters)
             end
           rescue ResilientSocket::ConnectionFailure => exc

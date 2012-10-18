@@ -1,6 +1,7 @@
 require 'sync_attr'
 require 'multi_json'
 require 'thread_safe'
+require 'gene_pool'
 
 #
 # RubySkynet Registry Client
@@ -60,9 +61,19 @@ module RubySkynet
       }
     end
 
-    # Lazy initialize Doozer Client
-    sync_cattr_reader :doozer do
-      Doozer::Client.new(doozer_config)
+    # Lazy initialize Doozer Client Connection pool
+    sync_cattr_reader :doozer_pool do
+      GenePool.new(
+        :name         =>"Doozer Connection Pool",
+        :pool_size    => 5,
+        :timeout      => 30,
+        :warn_timeout => 5,
+        :idle_timeout => 600,
+        :logger       => logger,
+        :close_proc   => :close
+      ) do
+        Doozer::Client.new(doozer_config)
+      end
     end
 
     # Logging instance for this class
@@ -94,9 +105,11 @@ module RubySkynet
     #     Region to look for the service in
     def self.registered_implementers(service_name='*', version='*', region='Development')
       hosts = []
-      doozer.walk("/services/#{service_name}/#{version}/#{region}/*/*").each do |node|
-        entry = MultiJson.load(node.value)
-        hosts << entry if entry['Registered']
+      doozer_pool.with_connection do |doozer|
+        doozer.walk("/services/#{service_name}/#{version}/#{region}/*/*").each do |node|
+          entry = MultiJson.load(node.value)
+          hosts << entry if entry['Registered']
+        end
       end
       hosts
     end
@@ -143,39 +156,44 @@ module RubySkynet
     end
 
     ############################
-    protected
+    #protected
 
     # Fetch the all registry information from Doozer and set the internal registry
     # Also starts the monitoring thread to keep the registry up to date
     def self.start_monitoring
       registry = ThreadSafe::Hash.new
-      revision = doozer.current_revision
-      doozer.walk(DOOZER_SERVICES_PATH, revision).each do |node|
-        # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
-        e = node.path.split('/')
+      revision = nil
+      doozer_pool.with_connection do |doozer|
+        revision = doozer.current_revision
+        doozer.walk(DOOZER_SERVICES_PATH, revision).each do |node|
+          # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
+          e = node.path.split('/')
 
-        # Key: [String] 'service_name/version/region'
-        key = "#{e[2]}/#{e[3]}/#{e[4]}"
-        server = "#{e[5]}:#{e[6]}"
+          # Key: [String] 'service_name/version/region'
+          key = "#{e[2]}/#{e[3]}/#{e[4]}"
+          server = "#{e[5]}:#{e[6]}"
 
-        if node.value.strip.size > 0
-          entry = MultiJson.load(node.value)
-          if entry['Registered']
-            # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (registry[key] ||= ThreadSafe::Array.new)
-            servers << server unless servers.include?(server)
-            logger.debug "#monitor Add/Update Service: #{key} => #{server}"
+          if node.value.strip.size > 0
+            entry = MultiJson.load(node.value)
+            if entry['Registered']
+              # Value: [Array<String>] 'host:port', 'host:port'
+              servers = (registry[key] ||= ThreadSafe::Array.new)
+              servers << server unless servers.include?(server)
+              logger.debug "#start_monitoring Add Service: #{key} => #{server}"
+            end
           end
         end
       end
       # Start monitoring thread to keep the registry up to date
-      @@monitor_thread = Thread.new { watch(revision + 1) }
+      @@monitor_thread = Thread.new { self.watch(revision + 1) }
       registry
     end
 
     # Waits for any updates from Doozer and updates the internal service registry
     def self.watch(revision)
       logger.info "Start monitoring #{DOOZER_SERVICES_PATH}"
+      # This thread must use its own dedicated doozer connection
+      doozer = Doozer::Client.new(doozer_config)
       doozer.watch(DOOZER_SERVICES_PATH, revision) do |node|
         # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
         e = node.path.split('/')

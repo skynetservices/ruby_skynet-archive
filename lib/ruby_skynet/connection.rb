@@ -209,8 +209,8 @@ module RubySkynet
     end
 
     # Execute the supplied block with a connection from the pool
-    def self.with_connection(server, &block)
-      (@@connection_pools[server] ||= new_connection_pool(server)).with_connection(&block)
+    def self.with_connection(server, params={}, &block)
+      (@@connection_pools[server] ||= new_connection_pool(server, params)).with_connection(&block)
     end
 
     def close

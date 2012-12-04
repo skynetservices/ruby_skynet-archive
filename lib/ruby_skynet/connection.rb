@@ -1,6 +1,7 @@
 require 'bson'
 require 'gene_pool'
 require 'thread_safe'
+require 'resilient_socket'
 
 #
 # RubySkynet Connection
@@ -80,7 +81,7 @@ module RubySkynet
         # ClientID string
         #   ClientID is a UUID that is used by the client to identify itself in RPC requests.
         @logger.debug "Waiting for Service Handshake"
-        service_handshake = self.class.read_bson_document(socket)
+        service_handshake = Common.read_bson_document(socket)
         @logger.trace 'Service Handshake', service_handshake
 
         # #TODO When a reconnect returns registered == false need to throw an exception
@@ -159,12 +160,12 @@ module RubySkynet
         # Since Send does not affect state on the server we can also retry reads
         if idempotent
           @logger.debug "Reading header from server"
-          header = self.class.read_bson_document(socket)
+          header = Common.read_bson_document(socket)
           @logger.debug 'Response Header', header
 
           # Read the BSON response document
           @logger.debug "Reading response from server"
-          response = self.class.read_bson_document(socket)
+          response = Common.read_bson_document(socket)
           @logger.trace 'Response', response
         end
       end
@@ -174,12 +175,12 @@ module RubySkynet
       unless idempotent
         # Read header first as a separate BSON document
         @logger.debug "Reading header from server"
-        header = self.class.read_bson_document(socket)
+        header = Common.read_bson_document(socket)
         @logger.debug 'Response Header', header
 
         # Read the BSON response document
         @logger.debug "Reading response from server"
-        response = self.class.read_bson_document(socket)
+        response = Common.read_bson_document(socket)
         @logger.trace 'Response', response
       end
 
@@ -219,23 +220,6 @@ module RubySkynet
 
     ########################
     protected
-
-    # Returns a BSON document read from the socket.
-    # Returns nil if the operation times out or if a network
-    #         connection failure occurs
-    def self.read_bson_document(socket)
-      bytebuf = BSON::ByteBuffer.new
-      # Read 4 byte size of following BSON document
-      bytes = socket.read(4)
-
-      # Read BSON document
-      sz = bytes.unpack("V")[0]
-      raise "Invalid Data received from server:#{bytes.inspect}" unless sz
-
-      bytebuf.append!(bytes)
-      bytebuf.append!(socket.read(sz - 4))
-      return BSON.deserialize(bytebuf)
-    end
 
     # Returns a new connection pool for the specified server
     def self.new_connection_pool(server, params={})

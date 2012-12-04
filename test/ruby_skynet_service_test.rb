@@ -9,11 +9,8 @@ require 'ruby_skynet'
 require 'simple_server'
 require 'multi_json'
 
-# Register an appender if one is not already registered
-if SemanticLogger::Logger.appenders.size == 0
-  SemanticLogger::Logger.default_level = :trace
-  SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
-end
+SemanticLogger::Logger.default_level = :trace
+SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 
 # Unit Test for ResilientSocket::TCPClient
 class RubySkynetClientTest < Test::Unit::TestCase
@@ -62,7 +59,7 @@ class RubySkynetClientTest < Test::Unit::TestCase
       end
 
       teardown do
-        @server.terminate if @server
+        @server.stop if @server
         # De-register server in doozer
         RubySkynet::Registry.doozer_pool.with_connection do |doozer|
           doozer.delete("/services/#{@service_name}/#{@version}/#{@region}/#{@ip_address}/#{@port}") rescue nil

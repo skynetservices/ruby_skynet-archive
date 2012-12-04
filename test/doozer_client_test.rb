@@ -6,9 +6,6 @@ require 'test/unit'
 require 'shoulda'
 require 'ruby_skynet/doozer/client'
 
-SemanticLogger::Logger.default_level = :trace
-SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
-
 # NOTE:
 # This test assumes that doozerd is running locally on the default port of 8046
 

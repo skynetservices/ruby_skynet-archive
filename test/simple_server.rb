@@ -2,10 +2,10 @@ require 'rubygems'
 require 'socket'
 require 'bson'
 require 'semantic_logger'
+require 'celluloid/io'
 
 # This a simple stand-alone server that does not use the Skynet code so that
 # the Skynet code can be tested
-
 
 # Read the bson document, returning nil if the IO is closed
 # before receiving any data or a complete BSON document
@@ -26,35 +26,25 @@ end
 # Simple single threaded server for testing purposes using a local socket
 # Sends and receives BSON Messages
 class SimpleServer
-  attr_reader :thread
-  def initialize(port = 2000)
-    start(port)
-  end
+  include Celluloid::IO
 
-  def start(port)
-    @server = TCPServer.open(port)
+  def initialize(port)
+    # Since we included Celluloid::IO, we're actually making a
+    # Celluloid::IO::TCPServer here
+    @server = TCPServer.new('127.0.0.1', port)
     @logger = SemanticLogger::Logger.new(self.class)
+    run!
+  end
 
-    @thread = Thread.new do
-      loop do
-        @logger.debug "Waiting for a client to connect"
-
-        # Wait for a client to connect
-        on_request(@server.accept)
-      end
+  def run
+    loop do
+      @logger.debug "Waiting for a client to connect"
+      handle_connection!(@server.accept)
     end
   end
 
-  def stop
-    if @thread
-      @thread.kill
-      @thread.join
-      @thread = nil
-    end
-    begin
-      @server.close if @server
-    rescue IOError
-    end
+  def finalize
+    @server.close if @server
   end
 
   # Called for each message received from the client
@@ -78,8 +68,7 @@ class SimpleServer
   end
 
   # Called for each client connection
-  # In a real server each request would be handled in a separate thread
-  def on_request(client)
+  def handle_connection(client)
     @logger.debug "Client connected, waiting for data from client"
 
     # Process handshake
@@ -87,7 +76,7 @@ class SimpleServer
       'registered' => true,
       'clientid' => '123'
     }
-    client.print(BSON.serialize(handshake))
+    client.write(BSON.serialize(handshake))
     read_bson_document(client)
 
     while(header = read_bson_document(client)) do
@@ -102,19 +91,17 @@ class SimpleServer
       if reply = on_message(request['method'], BSON.deserialize(request['in']))
         @logger.debug "Sending Header"
         # For this test we just send back the received header
-        client.print(BSON.serialize(header))
+        client.write(BSON.serialize(header))
 
         @logger.debug "Sending Reply"
         @logger.trace 'Reply', reply
-        client.print(BSON.serialize({'out' => BSON.serialize(reply).to_s}))
+        client.write(BSON.serialize({'out' => BSON.serialize(reply).to_s}))
       else
         @logger.debug "Closing client since no reply is being sent back"
         @server.close
         client.close
         @logger.debug "Server closed"
-        #@thread.kill
-        @logger.debug "thread killed"
-        start(2000)
+        run!
         @logger.debug "Server Restarted"
         break
       end
@@ -123,12 +110,12 @@ class SimpleServer
     client.close
     @logger.debug "Disconnected from the client"
   end
-
 end
 
 if $0 == __FILE__
   SemanticLogger::Logger.default_level = :trace
   SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new(STDOUT)
+  Celluloid.logger = SemanticLogger::Logger.new('Celluloid')
   server = SimpleServer.new(2000)
   server.thread.join
 end

@@ -8,8 +8,6 @@ require 'bson'
 #
 module RubySkynet
   class Client
-    include SyncAttr
-
     # Returns a new RubySkynet Client for the named service
     #
     # Calls to an instance of the Client are thread-safe and can be called

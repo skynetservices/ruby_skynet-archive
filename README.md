@@ -1,10 +1,10 @@
 ruby_skynet
 ===========
 
-Ruby Client for calling [Skynet](https://github.com/bketelsen/skynet) services.
-Will also implement the server side so that [Skynet](https://github.com/bketelsen/skynet) Services can be hosted in Ruby
+Ruby Client for calling [Skynet](https://github.com/skynetservices/skynet) services.
+Will also implement the server side so that [Skynet](https://github.com/skynetservices/skynet) Services can be hosted in Ruby
 
-* http://github.com/ClarityServices/ruby_skynet
+* http://github.com/skynetservices/ruby_skynet
 
 ### Example
 
@@ -16,7 +16,7 @@ RubySkynet::Client.connect('TutorialService') do |tutorial_service|
 end
 ```
 
-For details on installing and running the Tutorial Service: https://github.com/bketelsen/skynet/wiki/Service-Tutorial
+For details on installing and running the Tutorial Service: https://github.com/skynetservices/skynet/wiki/Service-Tutorial
 
 ### Logging
 
@@ -45,7 +45,7 @@ project for marshaling data for communicating with doozer
 
 - Ruby MRI 1.8.7 (or above), Ruby 1.9.3,  Or JRuby 1.6.3 (or above)
 - [SemanticLogger](http://github.com/ClarityServices/semantic_logger)
-- [ResilientSocket](http://github.com/ClarityServices/ruby_skynet)
+- [ResilientSocket](http://github.com/skynetservices/ruby_skynet)
 - [ruby_protobuf](https://github.com/macks/ruby-protobuf)
 - [multi_json](https://github.com/intridea/multi_json)
 
@@ -68,7 +68,7 @@ Want to contribute to Ruby Skynet?
 
 First clone the repo and run the tests:
 
-    git clone git://github.com/ClarityServices/ruby_skynet.git
+    git clone git://github.com/skynetservices/ruby_skynet.git
     cd ruby_skynet
     ruby -S rake test
 
@@ -82,15 +82,15 @@ Once you've made your great commits:
 1. [Fork](http://help.github.com/forking/) ruby_skynet
 2. Create a topic branch - `git checkout -b my_branch`
 3. Push to your branch - `git push origin my_branch`
-4. Create an [Issue](http://github.com/ClarityServices/ruby_skynet/issues) with a link to your branch
+4. Create an [Issue](http://github.com/skynetservices/ruby_skynet/issues) with a link to your branch
 5. That's it!
 
 Meta
 ----
 
-* Code: `git clone git://github.com/ClarityServices/ruby_skynet.git`
-* Home: <https://github.com/ClarityServices/ruby_skynet>
-* Bugs: <http://github.com/ClarityServices/ruby_skynet/issues>
+* Code: `git clone git://github.com/skynetservices/ruby_skynet.git`
+* Home: <https://github.com/skynetservices/ruby_skynet>
+* Bugs: <http://github.com/skynetservices/ruby_skynet/issues>
 * Gems: <http://rubygems.org/gems/ruby_skynet>
 
 This project uses [Semantic Versioning](http://semver.org/).

@@ -5,6 +5,7 @@ require 'rubygems'
 require 'rake/clean'
 require 'rake/testtask'
 require 'date'
+require 'semantic_logger'
 require 'ruby_skynet/version'
 
 desc "Build gem"

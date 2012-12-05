@@ -12,33 +12,42 @@ if SemanticLogger::Logger.appenders.size == 0
   SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 end
 
+RubySkynet::Server.port = 2100
+RubySkynet::Server.region = 'Test'
+RubySkynet::Server.hostname = 'localhost'
+
+class TestService
+  include RubySkynet::Service
+
+  # Methods implemented by this service
+  # Must take a Hash as input
+  # Must Return a Hash response or nil for no response
+  def echo(params)
+    params
+  end
+end
+
 # Unit Test for ResilientSocket::TCPClient
 class RubySkynetServiceTest < Test::Unit::TestCase
   context 'RubySkynet::Service' do
     context "with server" do
       setup do
-        RubySkynet::Server.port = 2100
-        RubySkynet::Server.region = 'Test'
-        RubySkynet::Server.hostname = 'localhost'
-        @server = RubySkynet::Server.new
-        @service_name = 'RubySkynet.Service'
+        RubySkynet::Server.start
+        @service_name = 'TestService'
         @version = 1
         @region = 'Test'
         @doozer_key = "/services/#{@service_name}/#{@version}/#{@region}/localhost/2100"
-
-        # Register Service
-        RubySkynet::Service
       end
 
       teardown do
         begin
-          @server.terminate if @server
+          RubySkynet::Server.stop
         rescue Celluloid::DeadActorError
         end
       end
 
       should "have correct service key" do
-        assert_equal @doozer_key, RubySkynet::Service.service_key
+        assert_equal @doozer_key, TestService.service_key
       end
 
       should "register service" do
@@ -54,18 +63,9 @@ class RubySkynetServiceTest < Test::Unit::TestCase
 
         should "successfully send and receive data" do
           reply = @client.call(:echo, 'some' => 'parameters')
-          assert_equal 'test1', reply #['result']
+          assert_equal 'some', reply.keys.first
+          assert_equal 'parameters', reply.values.first
         end
-
-#        should "timeout on receive" do
-#          request = { 'duration' => @read_timeout + 0.5}
-#
-#          exception = assert_raise ResilientSocket::ReadTimeout do
-#            # Read 4 bytes from server
-#            @client.call('sleep', request, :read_timeout => @read_timeout)
-#          end
-#          assert_match /Timedout after #{@read_timeout} seconds trying to read/, exception.message
-#        end
       end
 
     end

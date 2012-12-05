@@ -18,6 +18,7 @@ module RubySkynet
     @@hostname = nil
     @@port     = 2000
     @@region   = 'Development'
+    @@server   = nil
 
     # Region under which to register Skynet services
     # Default: 'Development'
@@ -50,34 +51,116 @@ module RubySkynet
       @@hostname ||= Socket.gethostname
     end
 
-    # Returns a new RubySkynet Server at the specified hostname and port
-    #
-    # Example
-    #
-    #  require 'ruby_skynet'
-    #  SemanticLogger.default_level = :trace
-    #  SemanticLogger.appenders << SemanticLogger::Appender::File(STDOUT)
-    #
-    #  server = RubySkynet::Server.new(2000)
-    def initialize(listen_ip = '0.0.0.0')
+    @@services = ThreadSafe::Hash.new
+
+    # Services currently loaded and available at this server when running
+    def self.services
+      @@services
+    end
+
+    # Registers a Service Class as being available at this port
+    def self.register_service(klass)
+      logger.debug "Registering Service: #{klass.name} with name: #{klass.service_name}"
+      @@services[klass.service_name] = klass
+      register_service_in_doozer(klass) if running?
+    end
+
+    # De-register service in doozer
+    def self.deregister_service(klass)
+      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
+        doozer.delete(klass.service_key) rescue nil
+      end
+      @@services.delete(klass.service_name)
+    end
+
+    # Returns whether the server is running
+    def self.running?
+      (@@server != nil) && @@server.running?
+    end
+
+    # Start the Server
+    def self.start
+      @@server = new
+      @@server.start
+    end
+
+    # Stop the Server
+    def self.stop
+      @@server.terminate
+      @@server = nil
+    end
+
+    def finalize
+      @server.close if @server
+      logger.info "Skynet Server Stopped"
+
+      # Deregister services hosted by this server
+      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
+        self.class.services.each_value do |klass|
+          doozer.delete(klass.service_key) rescue nil
+        end
+      end
+      logger.info "Skynet Services De-registered in Doozer"
+    end
+
+    # Returns whether the server is running
+    def running?
+      (@server != nil) && !@server.closed?
+    end
+
+    ############################################################################
+    protected
+
+    attr_accessor :server
+
+    # Register the supplied service in doozer
+    def self.register_service_in_doozer(klass)
+      config = {
+        "Config" => {
+          "UUID"    => "#{Server.hostname}:#{Server.port}-#{$$}-#{klass.name}-#{klass.object_id}",
+          "Name"    => klass.service_name,
+          "Version" => klass.service_version.to_s,
+          "Region"  => Server.region,
+          "ServiceAddr" => {
+            "IPAddress" => Server.hostname,
+            "Port"      => Server.port,
+            "MaxPort"   => Server.port + 999
+          },
+        },
+        "Registered" => true
+      }
+      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
+        doozer[klass.service_key] = MultiJson.encode(config)
+      end
+    end
+
+    # Start the server so that it can start taking RPC calls
+    # Returns false if the server is already running
+    def start
+      return false if running?
+
       # Since we included Celluloid::IO, we're actually making a
       # Celluloid::IO::TCPServer here
       # TODO If port is in use, try the next port in sequence
-      @server = TCPServer.new(listen_ip, self.class.port)
+      # TODO make port to listen on configurable
+      @server = TCPServer.new('0.0.0.0', self.class.port)
       run!
+
+      # Register services hosted by this server
+      self.class.services.each_pair {|key, klass| self.class.register_service_in_doozer(klass)}
+      true
     end
 
     def run
       logger.info("Starting listener on #{self.class.hostname}:#{self.class.port}")
       loop do
         logger.debug "Waiting for a client to connect"
-        handle_connection!(@server.accept)
+        begin
+          handle_connection!(@server.accept)
+        rescue Exception => exc
+          logger.error "Exception while processing connection request", exc
+        end
       end
-    end
-
-    def finalize
-      @server.close if @server
-      logger.info "Skynet Server Stopped"
     end
 
     # Called for each message received from the client
@@ -85,7 +168,7 @@ module RubySkynet
     def on_message(service_name, method, params)
       logger.benchmark_debug "Called: #{service_name}##{method}" do
         logger.trace "Method Call: #{method} with parameters:", params
-        klass = Service.registered_services[service_name]
+        klass = Server.services[service_name]
         raise "Invalid Skynet RPC call, service: #{service_name} is not available at this server" unless klass
         service = klass.new
         raise "Invalid Skynet RPC call, method: #{method} does not exist for service: #{service_name}" unless service.respond_to?(method)

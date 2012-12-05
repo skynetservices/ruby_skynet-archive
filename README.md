@@ -1,22 +1,56 @@
 ruby_skynet
 ===========
 
-Ruby Client for calling [Skynet](https://github.com/skynetservices/skynet) services.
-Will also implement the server side so that [Skynet](https://github.com/skynetservices/skynet) Services can be hosted in Ruby
+Ruby Client for calling [Skynet](https://github.com/skynetservices/skynet) services, and
+the server side so that [Skynet](https://github.com/skynetservices/skynet) services can be hosted in Ruby
 
 * http://github.com/skynetservices/ruby_skynet
 
-### Example
+### Client Example
 
 ```ruby
 require 'rubygems'
 require 'ruby_skynet'
-RubySkynet::Client.connect('TutorialService') do |tutorial_service|
-  p tutorial_service.call('AddOne', 'value' => 5)
-end
+
+client = RubySkynet::Client.new('TutorialService')
+p client.call('AddOne', :value => 5)
 ```
 
-For details on installing and running the Tutorial Service: https://github.com/skynetservices/skynet/wiki/Service-Tutorial
+For details on installing and running the GoLang Tutorial Service: https://github.com/skynetservices/skynet/wiki/Service-Tutorial
+
+### Server Example
+
+```ruby
+require 'rubygems'
+require 'ruby_skynet'
+
+RubySkynet::Server.port = 2000
+RubySkynet::Server.hostname = 'localhost'
+
+# Just echo back any parameters received when the echo method is called
+class EchoService
+  include RubySkynet::Service
+
+  # Methods implemented by this service
+  # Must take a Hash as input
+  # Must Return a Hash response or nil for no response
+  def echo(params)
+    params
+  end
+end
+
+# Start the server
+RubySkynet::Server.start
+```
+
+Client to call the above Service
+```ruby
+require 'rubygems'
+require 'ruby_skynet'
+
+client = RubySkynet::Client.new('EchoService')
+p client.call('echo', :hello => 'world')
+```
 
 ### Logging
 
@@ -26,12 +60,12 @@ calls can be enabled as follows:
 ```ruby
 require 'rubygems'
 require 'ruby_skynet'
+
 SemanticLogger::Logger.default_level = :trace
 SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('skynet.log')
 
-RubySkynet::Client.connect('TutorialService') do |tutorial_service|
-  p tutorial_service.call('AddOne', 'value' => 5)
-end
+client = RubySkynet::Client.new('EchoService')
+p client.call('echo', :hello => 'world')
 ```
 
 ### Architecture
@@ -45,9 +79,12 @@ project for marshaling data for communicating with doozer
 
 - Ruby MRI 1.8.7 (or above), Ruby 1.9.3,  Or JRuby 1.6.3 (or above)
 - [SemanticLogger](http://github.com/ClarityServices/semantic_logger)
-- [ResilientSocket](http://github.com/skynetservices/ruby_skynet)
+- [ResilientSocket](https://github.com/ClarityServices/resilient_socket)
 - [ruby_protobuf](https://github.com/macks/ruby-protobuf)
 - [multi_json](https://github.com/intridea/multi_json)
+
+The server to host services in Ruby also requires:
+- [Celluloid::io](https://github.com/celluloid/celluloid-io)
 
 ### Install
 
@@ -55,7 +92,6 @@ project for marshaling data for communicating with doozer
 
 ### Future
 
-* Implement Skynet Service in Ruby so that it can be called from Go lang, etc.
 * Immediately drop connections to a service on a host when that instance
   shuts down or stops. ( Doozer::Wait )
 * More intelligent selection of available Skynet services. For example

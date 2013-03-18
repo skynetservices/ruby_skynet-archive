@@ -183,7 +183,7 @@ module RubySkynet
         # Network error on read must be sent back to caller since we do not
         # know if the modification was made
         response = read(timeout) unless retry_read
-        raise ResponseError.new("#{Response::Err.name_by_value(response.err_code)}: #{response.err_detail}") if response.err_code != 0
+        raise ResponseError.new("#{Response::Err.name_by_value(response.err_code)} (#{response.err_code}): #{response.err_detail}") if response.err_code != 0
         response
       end
 

@@ -7,22 +7,6 @@ require 'celluloid/io'
 # This a simple stand-alone server that does not use the Skynet code so that
 # the Skynet code can be tested
 
-# Read the bson document, returning nil if the IO is closed
-# before receiving any data or a complete BSON document
-def read_bson_document(io)
-  bytebuf = BSON::ByteBuffer.new
-  # Read 4 byte size of following BSON document
-  bytes = io.read(4)
-  return unless bytes
-  # Read BSON document
-  sz = bytes.unpack("V")[0]
-  bytebuf.append!(bytes)
-  bytes = io.read(sz-4)
-  return unless bytes
-  bytebuf.append!(bytes)
-  return BSON.deserialize(bytebuf)
-end
-
 # Simple single threaded server for testing purposes using a local socket
 # Sends and receives BSON Messages
 class SimpleServer
@@ -33,13 +17,13 @@ class SimpleServer
     # Celluloid::IO::TCPServer here
     @server = TCPServer.new('127.0.0.1', port)
     @logger = SemanticLogger::Logger.new(self.class)
-    run!
+    async.run
   end
 
   def run
     loop do
       @logger.debug "Waiting for a client to connect"
-      handle_connection!(@server.accept)
+      async.handle_connection(@server.accept)
     end
   end
 
@@ -76,7 +60,7 @@ class SimpleServer
       'registered' => true,
       'clientid' => '123'
     }
-    client.write(BSON.serialize(handshake))
+    client.write(BSON.serialize(handshake).to_s)
     read_bson_document(client)
 
     while(header = read_bson_document(client)) do
@@ -91,17 +75,17 @@ class SimpleServer
       if reply = on_message(request['method'], BSON.deserialize(request['in']))
         @logger.debug "Sending Header"
         # For this test we just send back the received header
-        client.write(BSON.serialize(header))
+        client.write(BSON.serialize(header).to_s)
 
         @logger.debug "Sending Reply"
         @logger.trace 'Reply', reply
-        client.write(BSON.serialize({'out' => BSON.serialize(reply).to_s}))
+        client.write(BSON.serialize({'out' => BSON.serialize(reply).to_s}).to_s)
       else
         @logger.debug "Closing client since no reply is being sent back"
         @server.close
         client.close
         @logger.debug "Server closed"
-        run!
+        async.run
         @logger.debug "Server Restarted"
         break
       end
@@ -110,6 +94,23 @@ class SimpleServer
     client.close
     @logger.debug "Disconnected from the client"
   end
+
+  # Read the bson document, returning nil if the IO is closed
+  # before receiving any data or a complete BSON document
+  def read_bson_document(io)
+    bytebuf = BSON::ByteBuffer.new
+    # Read 4 byte size of following BSON document
+    bytes = io.read(4)
+    return unless bytes
+    # Read BSON document
+    sz = bytes.unpack("V")[0]
+    bytebuf.append!(bytes)
+    bytes = io.read(sz-4)
+    return unless bytes
+    bytebuf.append!(bytes)
+    return BSON.deserialize(bytebuf)
+  end
+
 end
 
 if $0 == __FILE__

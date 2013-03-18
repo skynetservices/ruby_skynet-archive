@@ -2,6 +2,7 @@ require 'bson'
 require 'gene_pool'
 require 'thread_safe'
 require 'resilient_socket'
+require 'sync_attr'
 
 #
 # RubySkynet Connection

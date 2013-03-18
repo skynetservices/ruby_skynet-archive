@@ -18,4 +18,4 @@ gem "bson"
 gem "bson_ext", :platform => :ruby
 # Celluloid::IO is used to create SkyNet services in Ruby
 # multi_json?
-gem "celluloid-io"
+gem "celluloid-io", '0.13.0.pre2'

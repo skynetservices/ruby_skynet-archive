@@ -14,7 +14,7 @@ end
 
 RubySkynet::Server.port = 2100
 RubySkynet::Server.region = 'Test'
-RubySkynet::Server.hostname = 'localhost'
+RubySkynet::Server.hostname = '127.0.0.1'
 
 class TestService
   include RubySkynet::Service
@@ -36,7 +36,7 @@ class RubySkynetServiceTest < Test::Unit::TestCase
         @service_name = 'TestService'
         @version = 1
         @region = 'Test'
-        @doozer_key = "/services/#{@service_name}/#{@version}/#{@region}/localhost/2100"
+        @doozer_key = "/services/#{@service_name}/#{@version}/#{@region}/127.0.0.1/2100"
       end
 
       teardown do

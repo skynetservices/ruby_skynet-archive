@@ -21,7 +21,7 @@ module RubySkynet
         end
       end
       # Register the service with the Server
-      # The server will publish the server to Doozer when te server is running
+      # The server will publish the server to Doozer when the server is running
       Server.register_service(base)
     end
 

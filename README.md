@@ -25,7 +25,7 @@ require 'rubygems'
 require 'ruby_skynet'
 
 RubySkynet::Server.port = 2000
-RubySkynet::Server.hostname = 'localhost'
+RubySkynet::Server.hostname = '127.0.0.1'
 
 # Just echo back any parameters received when the echo method is called
 class EchoService

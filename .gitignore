@@ -3,4 +3,4 @@
 .idea/*
 Gemfile.lock
 /nbproject/private/
-test.log
+*.log

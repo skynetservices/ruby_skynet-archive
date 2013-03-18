@@ -1,12 +1,14 @@
+# Allow examples to be run directly outside of the Gem
+$LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'rubygems'
 require 'ruby_skynet'
 
 # Log trace information to a log file
 SemanticLogger::Logger.default_level = :trace
-SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('skynet.log')
+SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('echo_server.log')
 
 # Specify Port and Hostname to listen for requests on
-RubySkynet::Server.port = 2000
+RubySkynet::Server.port = 2020
 RubySkynet::Server.hostname = '127.0.0.1'
 
 # Just echo back any parameters received when the echo method is called

@@ -95,7 +95,7 @@ module RubySkynet
         client_handshake = { 'clientid' => client_id }
         @logger.debug "Sending Client Handshake"
         @logger.trace 'Client Handshake', client_handshake
-        socket.write(BSON.serialize(client_handshake))
+        socket.write(BSON.serialize(client_handshake).to_s)
       end
 
       # To prevent strange issues if user incorrectly supplies server names
@@ -135,12 +135,12 @@ module RubySkynet
 
         @logger.debug "Sending Header"
         @logger.trace 'Header', header
-        socket.write(BSON.serialize(header))
+        socket.write(BSON.serialize(header).to_s)
 
         # The parameters are placed in the request object in BSON serialized form
         request = {
           'clientid'    => socket.user_data[:client_id],
-          'in'          => BSON.serialize(parameters).to_s,
+          'in'          => BSON::Binary.new(BSON.serialize(parameters).to_s),
           'method'      => method_name.to_s,
           'requestinfo' => {
             'requestid'     => request_id,
@@ -156,7 +156,7 @@ module RubySkynet
         @logger.debug "Sending Request"
         @logger.trace 'Request', request
         @logger.trace 'Parameters:', parameters
-        socket.write(BSON.serialize(request))
+        socket.write(BSON.serialize(request).to_s)
 
         # Since Send does not affect state on the server we can also retry reads
         if idempotent

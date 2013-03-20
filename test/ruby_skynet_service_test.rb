@@ -25,6 +25,10 @@ class TestService
   def echo(params)
     params
   end
+
+  def exception(params)
+    raise Exception.new("Exception message")
+  end
 end
 
 # Unit Test for ResilientSocket::TCPClient
@@ -40,10 +44,7 @@ class RubySkynetServiceTest < Test::Unit::TestCase
       end
 
       teardown do
-        begin
-          RubySkynet::Server.stop
-        rescue Celluloid::DeadActorError
-        end
+        RubySkynet::Server.stop
       end
 
       should "have correct service key" do
@@ -56,7 +57,7 @@ class RubySkynetServiceTest < Test::Unit::TestCase
         end
       end
 
-      context "calling with a client" do
+      context "using a client" do
         setup do
           @client = RubySkynet::Client.new(@service_name, @version, @region)
         end
@@ -66,6 +67,12 @@ class RubySkynetServiceTest < Test::Unit::TestCase
           assert_equal 'some', reply.keys.first
           assert_equal 'parameters', reply.values.first
         end
+
+        # Cellulloid 0.13.0.pre2 is doing something weird here and preventing the
+        # Server from catching the exception
+        #   should "handle service exceptions" do
+        #     reply = @client.call(:exception, 'some' => 'parameters')
+        #   end
       end
 
     end

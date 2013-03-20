@@ -210,14 +210,24 @@ module RubySkynet
     # Called for each message received from the client
     # Returns a Hash that is sent back to the caller
     def on_message(service_name, method, params)
-      logger.benchmark_debug "Called: #{service_name}##{method}" do
+      logger.benchmark_info "Skynet Call: #{service_name}##{method}" do
         logger.trace "Method Call: #{method} with parameters:", params
         klass = Server.services[service_name]
         raise "Invalid Skynet RPC call, service: #{service_name} is not available at this server" unless klass
         service = klass.new
         raise "Invalid Skynet RPC call, method: #{method} does not exist for service: #{service_name}" unless service.respond_to?(method)
         # TODO Use pool of services, or Celluloid here
-        service.send(method, params)
+        begin
+          service.send(method, params)
+        rescue Exception => exc
+          {
+            :exception => {
+              :class   => exc.class.name,
+              :message => exc.message,
+              :backtrace => exc.backtrace
+            }
+          }
+        end
       end
     end
 

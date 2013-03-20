@@ -29,21 +29,21 @@ module RubySkynet
       # Name of this service to Register with Skynet
       # Default: class name
       def service_name
-        @@service_name ||= name.gsub('::', '.')
+        @service_name ||= name.gsub('::', '.')
       end
 
       def service_name=(service_name)
-        @@service_name = service_name
+        @service_name = service_name
       end
 
       # Version of this service to register with Skynet, defaults to 1
       # Default: 1
       def service_version
-        @@service_version ||= 1
+        @service_version ||= 1
       end
 
       def service_version=(service_version)
-        @@service_version = service_version
+        @service_version = service_version
       end
 
       # Key by which this service is known in the doozer registry

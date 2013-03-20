@@ -54,7 +54,7 @@ module RubySkynet
     # Raises RubySkynet::SkynetException
     def call(method_name, parameters, connection_params={})
       # Skynet requires BSON RPC Calls to have the following format:
-      # https://github.com/bketelsen/skynet/blob/protocol/protocol.md
+      # https://github.com/skynetservices/skynet/blob/master/protocol.md
       request_id = BSON::ObjectId.new.to_s
       @logger.tagged request_id do
         @logger.benchmark_info "Called Skynet Service: #{@service_name}.#{method_name}" do

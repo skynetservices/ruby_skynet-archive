@@ -79,7 +79,7 @@ class SimpleServer
 
         @logger.debug "Sending Reply"
         @logger.trace 'Reply', reply
-        client.write(BSON.serialize({'out' => BSON.serialize(reply).to_s}).to_s)
+        client.write(BSON.serialize('out' => BSON::Binary.new(BSON.serialize(reply))).to_s)
       else
         @logger.debug "Closing client since no reply is being sent back"
         @server.close

@@ -57,7 +57,7 @@ module RubySkynet
         :read_timeout           => 5,
         :connect_timeout        => 3,
         :connect_retry_interval => 1,
-        :connect_retry_count    => 300
+        :connect_retry_count    => 30
       }
     end
 

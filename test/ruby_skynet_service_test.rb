@@ -39,22 +39,15 @@ class RubySkynetServiceTest < Test::Unit::TestCase
         RubySkynet::Server.start
         @service_name = 'TestService'
         @version = 1
-        @region = 'Test'
-        @doozer_key = "/services/#{@service_name}/#{@version}/#{@region}/127.0.0.1/2100"
+        @region = RubySkynet::Server.region
       end
 
       teardown do
         RubySkynet::Server.stop
       end
 
-      should "have correct service key" do
-        assert_equal @doozer_key, TestService.service_key
-      end
-
-      should "register service" do
-        RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-          assert_equal true, doozer[@doozer_key].length > 20
-        end
+      should "be running" do
+        assert_equal true, RubySkynet::Server.running?
       end
 
       context "using a client" do

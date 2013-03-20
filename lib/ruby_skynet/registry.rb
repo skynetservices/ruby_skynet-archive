@@ -17,8 +17,8 @@ module RubySkynet
     # Service Registry has the following format
     #  Key: [String] 'service_name/version/region'
     #  Value: [Array<String>] 'host:port', 'host:port'
-    sync_cattr_accessor :service_registry do
-      start_monitoring
+    sync_cattr_reader :service_registry do
+      start
     end
 
     @@on_server_removed_callbacks = ThreadSafe::Hash.new
@@ -61,24 +61,32 @@ module RubySkynet
       }
     end
 
-    # Lazy initialize Doozer Client Connection pool
-    sync_cattr_reader :doozer_pool do
-      GenePool.new(
-        :name         =>"Doozer Connection Pool",
-        :pool_size    => 5,
-        :timeout      => 30,
-        :warn_timeout => 5,
-        :idle_timeout => 600,
-        :logger       => logger,
-        :close_proc   => :close
-      ) do
-        Doozer::Client.new(doozer_config)
+    # Register the supplied service at this Skynet Server host and Port
+    def self.register_service(klass, region, hostname, port)
+      config = {
+        "Config" => {
+          "UUID"    => "#{hostname}:#{port}-#{$$}-#{klass.name}-#{klass.object_id}",
+          "Name"    => klass.service_name,
+          "Version" => klass.service_version.to_s,
+          "Region"  => region,
+          "ServiceAddr" => {
+            "IPAddress" => hostname,
+            "Port"      => port,
+            "MaxPort"   => port + 999
+          },
+        },
+        "Registered" => true
+      }
+      doozer_pool.with_connection do |doozer|
+        doozer[klass.service_key] = MultiJson.encode(config)
       end
     end
 
-    # Logging instance for this class
-    sync_cattr_reader :logger do
-      SemanticLogger::Logger.new(self, :debug)
+    # Deregister the supplied service from the Registry
+    def self.deregister_service(klass)
+      doozer_pool.with_connection do |doozer|
+        doozer.delete(klass.service_key) rescue nil
+      end
     end
 
     # Return a server that implements the specified service
@@ -156,11 +164,37 @@ module RubySkynet
     end
 
     ############################
-    #protected
+    protected
 
-    # Fetch the all registry information from Doozer and set the internal registry
+    # Logging instance for this class
+    sync_cattr_reader :logger do
+      SemanticLogger::Logger.new(self, :debug)
+    end
+
+    #ServiceInfo = Struct.new(:service_name, :version, :region, :host, :port, :score)
+
+    # Format of the internal services registry
+    #   key: [String] "<service_name>/<version>/<region>"
+    #   value: [ServiceInfo]
+
+    # Lazy initialize Doozer Client Connection pool
+    sync_cattr_reader :doozer_pool do
+      GenePool.new(
+        :name         =>"Doozer Connection Pool",
+        :pool_size    => 5,
+        :timeout      => 30,
+        :warn_timeout => 5,
+        :idle_timeout => 600,
+        :logger       => logger,
+        :close_proc   => :close
+      ) do
+        Doozer::Client.new(doozer_config)
+      end
+    end
+
+    # Fetch the all registry information from Doozer and sets the internal registry
     # Also starts the monitoring thread to keep the registry up to date
-    def self.start_monitoring
+    def self.start
       registry = ThreadSafe::Hash.new
       revision = nil
       doozer_pool.with_connection do |doozer|
@@ -184,8 +218,19 @@ module RubySkynet
           end
         end
       end
+
       # Start monitoring thread to keep the registry up to date
       @@monitor_thread = Thread.new { self.watch(revision + 1) }
+
+      # Cleanup when process exits
+      at_exit do
+        if @@monitor_thread
+          @@monitor_thread.kill
+          @@monitor_thread.join
+          @@monitor_thread = nil
+        end
+        doozer_pool.close
+      end
       registry
     end
 
@@ -206,31 +251,32 @@ module RubySkynet
           entry = MultiJson.load(node.value)
           if entry['Registered']
             # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (@@service_registry[key] ||= ThreadSafe::Array.new)
+            servers = (service_registry[key] ||= ThreadSafe::Array.new)
             servers << server unless servers.include?(server)
             logger.debug "#monitor Add/Update Service: #{key} => #{server}"
           else
             logger.debug "#monitor Service deregistered, remove: #{key} => #{server}"
-            if @@service_registry[key]
-              @@service_registry[key].delete(server)
-              @@service_registry.delete(key) if @@service_registry[key].size == 0
+            if service_registry[key]
+              service_registry[key].delete(server)
+              service_registry.delete(key) if service_registry[key].size == 0
             end
           end
         else
           # Service has stopped and needs to be removed
           logger.debug "#monitor Service stopped, remove: #{key} => #{server}"
-          if @@service_registry[key]
-            @@service_registry[key].delete(server)
-            @@service_registry.delete(key) if @@service_registry[key].size == 0
+          if service_registry[key]
+            service_registry[key].delete(server)
+            service_registry.delete(key) if service_registry[key].size == 0
             server_removed(server)
           end
         end
-        logger.debug "Updated registry", @@service_registry
+        logger.debug "Updated registry", service_registry
       end
       logger.info "Stopping monitoring thread normally"
     rescue Exception => exc
       logger.error "Exception in monitoring thread", exc
     ensure
+      doozer.close if doozer
       logger.info "Stopped monitoring"
     end
 

@@ -30,7 +30,7 @@ module RubySkynet
     end
 
     def self.running?
-      (@@server != nil) && @@server.running?
+      (@@server != nil) && @@server.actors.first.running?
     end
 
     # Region under which to register Skynet services
@@ -71,32 +71,41 @@ module RubySkynet
       @@services
     end
 
-    # Registers a Service Class as being available at this port
+    # Registers a Service Class as being available at this host and port
     def self.register_service(klass)
       logger.debug "Registering Service: #{klass.name} with name: #{klass.service_name}"
       @@services[klass.service_name] = klass
-      register_service_in_doozer(klass) if running?
+      Registry.register_service(klass, Server.region, Server.hostname, Server.port) if running?
     end
 
-    # De-register service in doozer
+    # De-register service
     def self.deregister_service(klass)
-      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-        doozer.delete(klass.service_key) rescue nil
-      end
+      Registry.deregister_service(klass) if running?
       @@services.delete(klass.service_name)
     end
+
+    attr_accessor :port
 
     # Start the server so that it can start taking RPC calls
     # Returns false if the server is already running
     def initialize(host, port)
       # Since we included Celluloid::IO, we're actually making a
       # Celluloid::IO::TCPServer here
-      # TODO If port is in use, try the next port in sequence
-      @server = TCPServer.new(host, port)
+
+      # If port is in use, try the next port in sequence
+      port_count = 0
+      begin
+        @server = TCPServer.new(host, port + port_count)
+      rescue Errno::EADDRINUSE => exc
+        if port_count < 999
+          port_count += 1
+        end
+      end
+      self.port = port + port_count
       async.run
 
       # Register services hosted by this server
-      self.class.services.each_pair {|key, klass| self.class.register_service_in_doozer(klass)}
+      self.class.services.each_pair {|key, klass| Registry.register_service(klass, Server.region, Server.hostname, port)}
     end
 
     def finalize
@@ -104,16 +113,14 @@ module RubySkynet
       logger.info "Skynet Server Stopped"
 
       # Deregister services hosted by this server
-      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-        self.class.services.each_value do |klass|
-          doozer.delete(klass.service_key) rescue nil
-        end
+      self.class.services.each_value do |klass|
+        Registry.deregister_service(klass) rescue nil
       end
-      logger.info "Skynet Services De-registered in Doozer"
+      logger.info "Skynet Services De-registered"
     end
 
     def run
-      logger.info("Starting listener on #{self.class.hostname}:#{self.class.port}")
+      logger.info("Starting listener on #{self.class.hostname}:#{port}")
       loop do
         logger.debug "Waiting for a client to connect"
         begin
@@ -185,27 +192,6 @@ module RubySkynet
 
     ############################################################################
     protected
-
-    # Register the supplied service in doozer
-    def self.register_service_in_doozer(klass)
-      config = {
-        "Config" => {
-          "UUID"    => "#{Server.hostname}:#{Server.port}-#{$$}-#{klass.name}-#{klass.object_id}",
-          "Name"    => klass.service_name,
-          "Version" => klass.service_version.to_s,
-          "Region"  => Server.region,
-          "ServiceAddr" => {
-            "IPAddress" => Server.hostname,
-            "Port"      => Server.port,
-            "MaxPort"   => Server.port + 999
-          },
-        },
-        "Registered" => true
-      }
-      RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-        doozer[klass.service_key] = MultiJson.encode(config)
-      end
-    end
 
     # Called for each message received from the client
     # Returns a Hash that is sent back to the caller

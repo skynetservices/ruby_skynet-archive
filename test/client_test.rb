@@ -24,7 +24,7 @@ class ClientTestService
   end
 
   def sleep(params)
-    sleep params['duration'] || 1
+    Kernel.sleep params['duration'] || 1
     { 'result' => 'sleep' }
   end
 

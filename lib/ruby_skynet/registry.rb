@@ -124,35 +124,17 @@ module RubySkynet
 
     # Returns [Array<String>] a list of servers implementing the requested service
     def self.servers_for(service_name, version='*', region='Development', remote = false)
-      if remote
-        if version != '*'
-          registered_implementers(service_name, version, region).map do |host|
-            service = host['Config']['ServiceAddr']
-            "#{service['IPAddress']}:#{service['Port']}"
-          end
-        else
-          # Find the highest version of any particular service
-          versions = {}
-          registered_implementers(service_name, version, region).each do |host|
-            service = host['Config']['ServiceAddr']
-            (versions[version.to_i] ||= []) << "#{service['IPAddress']}:#{service['Port']}"
-          end
-          # Return the servers implementing the highest version number
-          versions.sort.last.last
-        end
-      else
-        if version == '*'
-          # Find the highest version for the named service in this region
-          version = -1
-          service_registry.keys.each do |key|
-            if match = key.match(/#{service_name}\/(\d+)\/#{region}/)
-              ver = match[1].to_i
-              version = ver if ver > version
-            end
+      if version == '*'
+        # Find the highest version for the named service in this region
+        version = -1
+        service_registry.keys.each do |key|
+          if match = key.match(/#{service_name}\/(\d+)\/#{region}/)
+            ver = match[1].to_i
+            version = ver if ver > version
           end
         end
-        service_registry["#{service_name}/#{version}/#{region}"]
       end
+      service_registry["#{service_name}/#{version}/#{region}"]
     end
 
     # Invokes registered callbacks when a specific server is shutdown or terminates
@@ -195,32 +177,19 @@ module RubySkynet
     # Fetch the all registry information from Doozer and sets the internal registry
     # Also starts the monitoring thread to keep the registry up to date
     def self.start
+      # Populate internal registry from doozer server
+      #   Holds a lock in this process on the service_registry so that only
+      #   this thread will pre-populate the local copy of the registry
       registry = ThreadSafe::Hash.new
       revision = nil
       doozer_pool.with_connection do |doozer|
         revision = doozer.current_revision
         doozer.walk(DOOZER_SERVICES_PATH, revision).each do |node|
-          # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
-          e = node.path.split('/')
-
-          # Key: [String] 'service_name/version/region'
-          key = "#{e[2]}/#{e[3]}/#{e[4]}"
-          server = "#{e[5]}:#{e[6]}"
-
-          if node.value.strip.size > 0
-            entry = MultiJson.load(node.value)
-            if entry['Registered']
-              # Value: [Array<String>] 'host:port', 'host:port'
-              servers = (registry[key] ||= ThreadSafe::Array.new)
-              servers << server unless servers.include?(server)
-              logger.debug "#start_monitoring Add Service: #{key} => #{server}"
-            end
-          end
+          service_info_change(registry, node.path, node.value)
         end
       end
-
       # Start monitoring thread to keep the registry up to date
-      @@monitor_thread = Thread.new { self.watch(revision + 1) }
+      @@monitor_thread = Thread.new { watch_registry(revision + 1) }
 
       # Cleanup when process exits
       at_exit do
@@ -235,49 +204,56 @@ module RubySkynet
     end
 
     # Waits for any updates from Doozer and updates the internal service registry
-    def self.watch(revision)
+    def self.watch_registry(revision)
       logger.info "Start monitoring #{DOOZER_SERVICES_PATH}"
       # This thread must use its own dedicated doozer connection
       doozer = Doozer::Client.new(doozer_config)
+
+      # Watch for any changes
       doozer.watch(DOOZER_SERVICES_PATH, revision) do |node|
-        # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
-        e = node.path.split('/')
-
-        # Key: [String] 'service_name/version/region'
-        key = "#{e[2]}/#{e[3]}/#{e[4]}"
-        server = "#{e[5]}:#{e[6]}"
-
-        if node.value.strip.size > 0
-          entry = MultiJson.load(node.value)
-          if entry['Registered']
-            # Value: [Array<String>] 'host:port', 'host:port'
-            servers = (service_registry[key] ||= ThreadSafe::Array.new)
-            servers << server unless servers.include?(server)
-            logger.debug "#monitor Add/Update Service: #{key} => #{server}"
-          else
-            logger.debug "#monitor Service deregistered, remove: #{key} => #{server}"
-            if service_registry[key]
-              service_registry[key].delete(server)
-              service_registry.delete(key) if service_registry[key].size == 0
-            end
-          end
-        else
-          # Service has stopped and needs to be removed
-          logger.debug "#monitor Service stopped, remove: #{key} => #{server}"
-          if service_registry[key]
-            service_registry[key].delete(server)
-            service_registry.delete(key) if service_registry[key].size == 0
-            server_removed(server)
-          end
-        end
-        logger.debug "Updated registry", service_registry
+        service_info_change(service_registry, node.path, node.value)
+        logger.trace "Updated registry", service_registry
       end
       logger.info "Stopping monitoring thread normally"
     rescue Exception => exc
       logger.error "Exception in monitoring thread", exc
     ensure
       doozer.close if doozer
-      logger.info "Stopped monitoring"
+      logger.info "Stopped monitoring for changes in the doozer registry"
+    end
+
+    # Service information changed in doozer, so update internal registry
+    def self.service_info_change(registry, path, value)
+      # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
+      e = path.split('/')
+
+      # Key: [String] 'service_name/version/region'
+      key = "#{e[2]}/#{e[3]}/#{e[4]}"
+      server = "#{e[5]}:#{e[6]}"
+
+      if value.strip.size > 0
+        entry = MultiJson.load(value)
+        if entry['Registered']
+          # Value: [Array<String>] 'host:port', 'host:port'
+          servers = (registry[key] ||= ThreadSafe::Array.new)
+          servers << server unless servers.include?(server)
+          logger.debug "#monitor Add/Update Service: #{key} => #{server}"
+        else
+          logger.debug "#monitor Service deregistered, remove: #{key} => #{server}"
+          if registry[key]
+            registry[key].delete(server)
+            registry.delete(key) if registry[key].size == 0
+          end
+        end
+      else
+        # Service has stopped and needs to be removed
+        logger.debug "#monitor Service stopped, remove: #{key} => #{server}"
+        if registry[key]
+          registry[key].delete(server)
+          registry.delete(key) if registry[key].size == 0
+          server_removed(server)
+        end
+      end
     end
 
     # Invoke any registered callbacks for the specific server
@@ -291,6 +267,26 @@ module RubySkynet
             logger.error("Exception during a callback for server: #{server}", exc)
           end
         end
+      end
+    end
+
+    # Check doozer for servers matching supplied criteria
+    # Code unused, consider deleting
+    def self.remote_servers_for(service_name, version='*', region='Development')
+      if version != '*'
+        registered_implementers(service_name, version, region).map do |host|
+          service = host['Config']['ServiceAddr']
+          "#{service['IPAddress']}:#{service['Port']}"
+        end
+      else
+        # Find the highest version of any particular service
+        versions = {}
+        registered_implementers(service_name, version, region).each do |host|
+          service = host['Config']['ServiceAddr']
+          (versions[version.to_i] ||= []) << "#{service['IPAddress']}:#{service['Port']}"
+        end
+        # Return the servers implementing the highest version number
+        versions.sort.last.last
       end
     end
 

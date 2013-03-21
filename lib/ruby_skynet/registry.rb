@@ -123,7 +123,7 @@ module RubySkynet
     end
 
     # Returns [Array<String>] a list of servers implementing the requested service
-    def self.servers_for(service_name, version='*', region='Development', remote = false)
+    def self.servers_for(service_name, version='*', region='Development')
       if version == '*'
         # Find the highest version for the named service in this region
         version = -1

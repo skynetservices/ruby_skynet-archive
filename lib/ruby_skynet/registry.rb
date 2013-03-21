@@ -62,12 +62,12 @@ module RubySkynet
     end
 
     # Register the supplied service at this Skynet Server host and Port
-    def self.register_service(klass, region, hostname, port)
+    def self.register_service(name, version, region, hostname, port)
       config = {
         "Config" => {
-          "UUID"    => "#{hostname}:#{port}-#{$$}-#{klass.name}-#{klass.object_id}",
-          "Name"    => klass.service_name,
-          "Version" => klass.service_version.to_s,
+          "UUID"    => "#{hostname}:#{port}-#{$$}-#{name}-#{version}",
+          "Name"    => name,
+          "Version" => version.to_s,
           "Region"  => region,
           "ServiceAddr" => {
             "IPAddress" => hostname,
@@ -78,14 +78,14 @@ module RubySkynet
         "Registered" => true
       }
       doozer_pool.with_connection do |doozer|
-        doozer[klass.service_key] = MultiJson.encode(config)
+        doozer["/services/#{name}/#{version}/#{region}/#{hostname}/#{port}"] = MultiJson.encode(config)
       end
     end
 
     # Deregister the supplied service from the Registry
-    def self.deregister_service(klass)
+    def self.deregister_service(name, version, region, hostname, port)
       doozer_pool.with_connection do |doozer|
-        doozer.delete(klass.service_key) rescue nil
+        doozer.delete("/services/#{name}/#{version}/#{region}/#{hostname}/#{port}") rescue nil
       end
     end
 

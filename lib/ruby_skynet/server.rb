@@ -14,57 +14,24 @@ module RubySkynet
     include Celluloid::IO
     include SemanticLogger::Loggable
 
-    # TODO Make Server instance based rather than class based. Then make instance global
-    @@hostname = nil
-    @@port     = 2000
-    @@region   = 'Development'
     @@server   = nil
+    @@services = ThreadSafe::Hash.new
 
-    def self.start
-      @@server ||= supervise(hostname, port)
+    # Start a single instance of the server
+    def self.start(hostname = Socket.gethostname, port = 2000, region = 'Development')
+      @@server ||= supervise(hostname, port, region)
     end
 
+    # Stop the single instance of the server
     def self.stop
       @@server.terminate if @@server
       @@server = nil
     end
 
+    # Is the single instance of the server running
     def self.running?
       (@@server != nil) && @@server.actors.first.running?
     end
-
-    # Region under which to register Skynet services
-    # Default: 'Development'
-    def self.region
-      @@region
-    end
-
-    def self.region=(region)
-      @@region = region
-    end
-
-    # Port to listen to requests on
-    # Default: 2000
-    def self.port
-      @@port
-    end
-
-    def self.port=(port)
-      @@port = port
-    end
-
-    # Override the hostname at which this server is running
-    # Useful when the service is behind a firewall or NAT device
-    def self.hostname=(hostname)
-      @@hostname = hostname
-    end
-
-    # Returns [String] hostname of the current server
-    def self.hostname
-      @@hostname ||= Socket.gethostname
-    end
-
-    @@services = ThreadSafe::Hash.new
 
     # Services currently loaded and available at this server when running
     def self.services
@@ -73,39 +40,53 @@ module RubySkynet
 
     # Registers a Service Class as being available at this host and port
     def self.register_service(klass)
-      logger.debug "Registering Service: #{klass.name} with name: #{klass.service_name}"
+      # TODO Need specific Exception class
+      raise "#{klass.inspect} is not a RubySkynet::Service" unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
+
+      if previous_klass = @@services[klass.service_name] && (previous_klass.name != klass.name)
+        logger.warn("Service with name: #{klass.service_name} is already registered to a different implementation:#{previous_klass.name}")
+      end
       @@services[klass.service_name] = klass
-      Registry.register_service(klass, Server.region, Server.hostname, Server.port) if running?
+      @@server.register_service(klass) if @@server
     end
 
     # De-register service
     def self.deregister_service(klass)
-      Registry.deregister_service(klass) if running?
+      # TODO Need specific Exception class
+      raise "#{klass.inspect} is not a RubySkynet::Service" unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
+
+      @@server.deregister_service(klass) if @@server
       @@services.delete(klass.service_name)
     end
 
-    attr_accessor :port
+    # The actual port the server is running at which will be different
+    # from Server.port if that port was already in use at startup
+    attr_reader :hostname, :port, :region
 
     # Start the server so that it can start taking RPC calls
     # Returns false if the server is already running
-    def initialize(host, port)
-      # Since we included Celluloid::IO, we're actually making a
-      # Celluloid::IO::TCPServer here
+    def initialize(hostname = Socket.gethostname, port = 2000, region = 'Development')
 
       # If port is in use, try the next port in sequence
       port_count = 0
       begin
-        @server = TCPServer.new(host, port + port_count)
+        # Since we included Celluloid::IO, we're actually making a
+        # Celluloid::IO::TCPServer here
+        @server   = TCPServer.new(hostname, port + port_count)
+        @hostname = hostname
+        @port     = port + port_count
+        @region   = region
       rescue Errno::EADDRINUSE => exc
         if port_count < 999
           port_count += 1
+          retry
         end
+        raise exc
       end
-      self.port = port + port_count
       async.run
 
       # Register services hosted by this server
-      self.class.services.each_pair {|key, klass| Registry.register_service(klass, Server.region, Server.hostname, port)}
+      self.class.services.each_value {|klass| register_service(klass)}
     end
 
     def finalize
@@ -114,13 +95,13 @@ module RubySkynet
 
       # Deregister services hosted by this server
       self.class.services.each_value do |klass|
-        Registry.deregister_service(klass) rescue nil
+        deregister_service(klass) rescue nil
       end
       logger.info "Skynet Services De-registered"
     end
 
     def run
-      logger.info("Starting listener on #{self.class.hostname}:#{port}")
+      logger.info("Starting listener on #{hostname}:#{port}")
       loop do
         logger.debug "Waiting for a client to connect"
         begin
@@ -193,6 +174,18 @@ module RubySkynet
     ############################################################################
     protected
 
+    # Registers a Service Class as being available at this server
+    def register_service(klass)
+      logger.debug "Registering Service: #{klass.name} with name: #{klass.service_name}"
+      Registry.register_service(klass.service_name, klass.service_version, @region, @hostname, @port)
+    end
+
+    # De-register service from this server
+    def deregister_service(klass)
+      logger.debug "De-registering Service: #{klass.name} with name: #{klass.service_name}"
+      Registry.deregister_service(klass.service_name, klass.service_version, @region, @hostname, @port)
+    end
+
     # Called for each message received from the client
     # Returns a Hash that is sent back to the caller
     def on_message(service_name, method, params)
@@ -200,20 +193,10 @@ module RubySkynet
         logger.trace "Method Call: #{method} with parameters:", params
         klass = Server.services[service_name]
         raise "Invalid Skynet RPC call, service: #{service_name} is not available at this server" unless klass
+        # TODO Use pool of services, or Celluloid here
         service = klass.new
         raise "Invalid Skynet RPC call, method: #{method} does not exist for service: #{service_name}" unless service.respond_to?(method)
-        # TODO Use pool of services, or Celluloid here
-        begin
-          service.send(method, params)
-        rescue Exception => exc
-          {
-            :exception => {
-              :class   => exc.class.name,
-              :message => exc.message,
-              :backtrace => exc.backtrace
-            }
-          }
-        end
+        service.send(method, params)
       end
     end
 

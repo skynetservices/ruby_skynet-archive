@@ -46,10 +46,6 @@ module RubySkynet
         @service_version = service_version
       end
 
-      # Key by which this service is known in the doozer registry
-      def service_key
-        "/services/#{service_name}/#{service_version}/#{Server.region}/#{Server.hostname}/#{Server.port}"
-      end
     end
 
   end

@@ -6,8 +6,6 @@ require 'rubygems'
 require 'test/unit'
 require 'shoulda'
 require 'ruby_skynet'
-require 'simple_server'
-require 'multi_json'
 
 # Register an appender if one is not already registered
 if SemanticLogger::Logger.appenders.size == 0
@@ -15,8 +13,33 @@ if SemanticLogger::Logger.appenders.size == 0
   SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 end
 
+class ClientTestService
+  include RubySkynet::Service
+
+  # Methods implemented by this service
+  # Must take a Hash as input
+  # Must Return a Hash response or nil for no response
+  def test1(params)
+    { 'result' => 'test1' }
+  end
+
+  def sleep(params)
+    sleep params['duration'] || 1
+    { 'result' => 'sleep' }
+  end
+
+  def fail(params)
+    if params['attempt'].to_i >= 2
+      { 'result' => 'fail' }
+    else
+      nil
+    end
+  end
+
+end
+
 # Unit Test for ResilientSocket::TCPClient
-class RubySkynetClientTest < Test::Unit::TestCase
+class ClientTest < Test::Unit::TestCase
   context RubySkynet::Client do
 
     context "without server" do
@@ -32,41 +55,19 @@ class RubySkynetClientTest < Test::Unit::TestCase
 
     context "with server" do
       setup do
-        @port = 2000
-        @read_timeout = 3.0
-        @server = SimpleServer.new(@port)
-        @server_name = "localhost:#{@port}"
+        @port = 2100
+        @region = 'ClientTest'
+        @hostname = '127.0.0.1'
+        RubySkynet::Server.start(@hostname, @port, @region)
 
-        # Register service in doozer
-        @service_name = "TestService"
+        @service_name = 'ClientTestService'
         @version = 1
-        @region = 'Test'
-        @ip_address = "127.0.0.1"
-        config = {
-          "Config" => {
-            "UUID" => "3978b371-15e9-40f8-9b7b-59ae88d8c7ec",
-            "Name" => @service_name,
-            "Version" => @version.to_s,
-            "Region" => @region,
-            "ServiceAddr" => {
-              "IPAddress" => @ip_address,
-              "Port" => @port,
-              "MaxPort" => @port + 999
-            },
-          },
-          "Registered" => true
-        }
-        RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-          doozer["/services/#{@service_name}/#{@version}/#{@region}/#{@ip_address}/#{@port}"] = MultiJson.encode(config)
-        end
+
+        @read_timeout = 3.0
       end
 
       teardown do
-        @server.terminate if @server
-        # De-register server in doozer
-        RubySkynet::Registry.doozer_pool.with_connection do |doozer|
-          doozer.delete("/services/#{@service_name}/#{@version}/#{@region}/#{@ip_address}/#{@port}") rescue nil
-        end
+        RubySkynet::Server.stop
       end
 
       context "with client connection" do

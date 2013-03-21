@@ -12,10 +12,6 @@ if SemanticLogger::Logger.appenders.size == 0
   SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 end
 
-RubySkynet::Server.port = 2100
-RubySkynet::Server.region = 'Test'
-RubySkynet::Server.hostname = '127.0.0.1'
-
 class TestService
   include RubySkynet::Service
 
@@ -32,14 +28,18 @@ class TestService
 end
 
 # Unit Test for ResilientSocket::TCPClient
-class RubySkynetServiceTest < Test::Unit::TestCase
+class ServiceTest < Test::Unit::TestCase
   context 'RubySkynet::Service' do
     context "with server" do
       setup do
-        RubySkynet::Server.start
+        @port = 2100
+        @region = 'Test'
+        @hostname = '127.0.0.1'
+        RubySkynet::Server.start(@hostname, @port, @region)
+        sleep 1
+
         @service_name = 'TestService'
         @version = 1
-        @region = RubySkynet::Server.region
       end
 
       teardown do
@@ -62,7 +62,7 @@ class RubySkynetServiceTest < Test::Unit::TestCase
         end
 
         # Cellulloid 0.13.0.pre2 is doing something weird here and preventing the
-        # Server from catching the exception
+        # Server from receiving the exception
         #   should "handle service exceptions" do
         #     reply = @client.call(:exception, 'some' => 'parameters')
         #   end

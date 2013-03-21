@@ -25,7 +25,7 @@ module RubySkynet
         # Disable buffering the send since it is a RPC call
         params[:buffered] = false
 
-        @logger.trace "Socket Connection parameters", params
+        @logger.trace "Socket Connection parameters", params.dup
 
         # For each new connection
         params[:on_connect] = Proc.new do |socket|

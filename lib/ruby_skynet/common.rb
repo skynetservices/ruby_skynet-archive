@@ -20,7 +20,7 @@ module RubySkynet
 
       bytebuf.append!(bytes)
       bytebuf.append!(socket.read(sz - 4))
-      raise "Celluloid is not returning #{sz} requested bytes. #{bytebuf.length} bytes returned" unless sz == bytebuf.length
+      raise "Socket is not returning #{sz} requested bytes. #{bytebuf.length} bytes returned" unless sz == bytebuf.length
       return BSON.deserialize(bytebuf)
     end
 

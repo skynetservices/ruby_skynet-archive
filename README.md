@@ -24,9 +24,6 @@ For details on installing and running the GoLang Tutorial Service: https://githu
 require 'rubygems'
 require 'ruby_skynet'
 
-RubySkynet::Server.port = 2000
-RubySkynet::Server.hostname = '127.0.0.1'
-
 # Just echo back any parameters received when the echo method is called
 class EchoService
   include RubySkynet::Service
@@ -82,9 +79,6 @@ project for marshaling data for communicating with doozer
 - [ResilientSocket](https://github.com/ClarityServices/resilient_socket)
 - [ruby_protobuf](https://github.com/macks/ruby-protobuf)
 - [multi_json](https://github.com/intridea/multi_json)
-
-The server to host services in Ruby also requires:
-- [Celluloid::io](https://github.com/celluloid/celluloid-io)
 
 ### Install
 

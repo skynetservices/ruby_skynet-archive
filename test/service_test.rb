@@ -22,8 +22,8 @@ class TestService
     params
   end
 
-  def exception(params)
-    raise Exception.new("Exception message")
+  def exception_test(params)
+    raise "Exception message"
   end
 end
 
@@ -41,6 +41,7 @@ class ServiceTest < Test::Unit::TestCase
 
       teardown do
         RubySkynet::Server.stop
+        SemanticLogger::Logger.flush
       end
 
       should "be running" do
@@ -60,9 +61,10 @@ class ServiceTest < Test::Unit::TestCase
 
         # Cellulloid 0.13.0.pre2 is doing something weird here and preventing the
         # Server from receiving the exception
-        #   should "handle service exceptions" do
-        #     reply = @client.call(:exception, 'some' => 'parameters')
-        #   end
+        should "handle service exceptions" do
+          reply = @client.call(:exception_test, 'some' => 'parameters')
+          assert_equal "Exception message", reply['exception']['message']
+        end
       end
 
     end

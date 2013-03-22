@@ -1,8 +1,4 @@
 require 'bson'
-require 'celluloid/io'
-
-# Replace Celluloid logger immediately upon loading the Server Instance
-Celluloid.logger = SemanticLogger::Logger.new('Celluloid')
 
 #
 # RubySkynet Server
@@ -11,7 +7,6 @@ Celluloid.logger = SemanticLogger::Logger.new('Celluloid')
 #
 module RubySkynet
   class Server
-    include Celluloid::IO
     include SemanticLogger::Loggable
 
     @@server   = nil
@@ -19,18 +14,18 @@ module RubySkynet
 
     # Start a single instance of the server
     def self.start(region = 'Development', start_port = 2000, hostname = nil)
-      @@server ||= supervise(region, start_port, hostname)
+      @@server ||= new(region, start_port, hostname)
     end
 
     # Stop the single instance of the server
     def self.stop
-      @@server.terminate if @@server
+      @@server.finalize if @@server
       @@server = nil
     end
 
     # Is the single instance of the server running
     def self.running?
-      (@@server != nil) && @@server.actors.first.running?
+      (@@server != nil) && @@server.running?
     end
 
     # Services currently loaded and available at this server when running
@@ -40,8 +35,7 @@ module RubySkynet
 
     # Registers a Service Class as being available at this host and port
     def self.register_service(klass)
-      # TODO Need specific Exception class
-      raise "#{klass.inspect} is not a RubySkynet::Service" unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
+      raise InvalidServiceException.new("#{klass.inspect} is not a RubySkynet::Service") unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
 
       if previous_klass = @@services[klass.service_name] && (previous_klass.name != klass.name)
         logger.warn("Service with name: #{klass.service_name} is already registered to a different implementation:#{previous_klass.name}")
@@ -52,8 +46,7 @@ module RubySkynet
 
     # De-register service
     def self.deregister_service(klass)
-      # TODO Need specific Exception class
-      raise "#{klass.inspect} is not a RubySkynet::Service" unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
+      raise InvalidServiceException.new("#{klass.inspect} is not a RubySkynet::Service") unless klass.respond_to?(:service_name) && klass.respond_to?(:service_version)
 
       @@server.deregister_service(klass) if @@server
       @@services.delete(klass.service_name)
@@ -67,13 +60,11 @@ module RubySkynet
     # Returns false if the server is already running
     def initialize(region = 'Development', start_port = 2000, hostname = nil)
       hostname ||= Common.local_ip_address
-      
+
       # If port is in use, try the next port in sequence
       port_count = 0
       begin
-        # Since we included Celluloid::IO, we're actually making a
-        # Celluloid::IO::TCPServer here
-        @server   = TCPServer.new(hostname, start_port + port_count)
+        @server   = ::TCPServer.new(hostname, start_port + port_count)
         @hostname = hostname
         @port     = start_port + port_count
         @region   = region
@@ -84,7 +75,9 @@ module RubySkynet
         end
         raise exc
       end
-      async.run
+
+      # Start Server listener thread
+      Thread.new { run }
 
       # Register services hosted by this server
       self.class.services.each_value {|klass| register_service(klass)}
@@ -106,8 +99,14 @@ module RubySkynet
       loop do
         logger.debug "Waiting for a client to connect"
         begin
-          async.handle_connection(@server.accept)
-        rescue Exception => exc
+          client = @server.accept
+          # We could use a thread pool here, but JRuby already does that
+          # and MRI threads are very light weight
+          Thread.new { handle_connection(client) }
+        rescue Errno::EBADF, IOError => exc
+          logger.info "TCPServer listener thread shutting down. #{exc.class}: #{exc.message}"
+          return
+        rescue ScriptError, NameError, StandardError, Exception => exc
           logger.error "Exception while processing connection request", exc
         end
       end
@@ -141,11 +140,11 @@ module RubySkynet
         break unless request
         params = BSON.deserialize(request['in'])
         logger.trace 'Parameters', params
+        
         reply = begin
           on_message(service_name, request['method'].to_sym, params)
-        rescue Exception => exc
+        rescue ScriptError, NameError, StandardError, Exception => exc
           logger.error "Exception while calling service: #{service_name}", exc
-          # TODO Return exception in header
           { :exception => {:message => exc.message, :class => exc.class.name} }
         end
 
@@ -162,6 +161,9 @@ module RubySkynet
           break
         end
       end
+    rescue ScriptError, NameError, StandardError, Exception => exc
+      logger.error "#handle_connection Exception", exc
+    ensure
       # Disconnect from the client
       client.close
       logger.debug "Disconnected from the client"
@@ -190,11 +192,11 @@ module RubySkynet
     # Called for each message received from the client
     # Returns a Hash that is sent back to the caller
     def on_message(service_name, method, params)
-      logger.benchmark_info "Skynet Call: #{service_name}##{method}" do
+      logger.benchmark_info("Skynet Call: #{service_name}##{method}") do
         logger.trace "Method Call: #{method} with parameters:", params
         klass = Server.services[service_name]
         raise "Invalid Skynet RPC call, service: #{service_name} is not available at this server" unless klass
-        # TODO Use pool of services, or Celluloid here
+        # TODO Use pool of services
         service = klass.new
         raise "Invalid Skynet RPC call, method: #{method} does not exist for service: #{service_name}" unless service.respond_to?(method)
         service.send(method, params)

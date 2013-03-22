@@ -29,7 +29,6 @@ task :gem  do |t|
     spec.add_dependency 'multi_json', '>= 1.6.1'
     spec.add_dependency 'bson'
     spec.add_dependency 'ruby_protobuf'
-    spec.add_dependency 'celluloid-io', '>= 0.13.0.pre2'
   end
   Gem::Package.build gemspec
 end

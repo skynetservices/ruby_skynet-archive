@@ -4,9 +4,8 @@ $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'rubygems'
 require 'test/unit'
 require 'shoulda'
-require 'ruby_skynet/registry'
-require 'semantic_logger'
-require 'ruby_skynet/doozer/client'
+require 'mocha/setup'
+require 'ruby_skynet'
 
 # Register an appender if one is not already registered
 if SemanticLogger::Logger.appenders.size == 0
@@ -77,6 +76,21 @@ class RegistryTest < Test::Unit::TestCase
       should "be in doozer" do
         RubySkynet::Registry.send(:doozer_pool).with_connection do |doozer|
           assert_equal true, doozer[@service_key].length > 20
+        end
+      end
+    end
+
+    context "scoring" do
+      [
+        ['192.168.11.0',  4 ],
+        ['192.168.11.10', 3 ],
+        ['192.168.10.0',  2 ],
+        ['192.5.10.0',    1 ],
+        ['10.0.11.0',     0 ],
+      ].each do |test|
+        should "handle score #{test[1]}" do
+          RubySkynet::Common.stubs(:local_ip_address).returns("192.168.11.0")
+          assert_equal test[1], RubySkynet::Registry.score_for_server(test[0]), "Local: #{RubySkynet::Common.local_ip_address} Server: #{test[0]} Score: #{test[1]}"
         end
       end
     end

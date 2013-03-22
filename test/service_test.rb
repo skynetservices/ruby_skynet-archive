@@ -32,14 +32,11 @@ class ServiceTest < Test::Unit::TestCase
   context 'RubySkynet::Service' do
     context "with server" do
       setup do
-        @port = 2100
         @region = 'Test'
-        @hostname = '127.0.0.1'
-        RubySkynet::Server.start(@hostname, @port, @region)
-        sleep 1
-
         @service_name = 'TestService'
         @version = 1
+        RubySkynet::Server.start(@region)
+        sleep 0.2
       end
 
       teardown do

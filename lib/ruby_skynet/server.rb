@@ -18,8 +18,8 @@ module RubySkynet
     @@services = ThreadSafe::Hash.new
 
     # Start a single instance of the server
-    def self.start(hostname = Socket.gethostname, port = 2000, region = 'Development')
-      @@server ||= supervise(hostname, port, region)
+    def self.start(region = 'Development', start_port = 2000, hostname = nil)
+      @@server ||= supervise(region, start_port, hostname)
     end
 
     # Stop the single instance of the server
@@ -65,16 +65,17 @@ module RubySkynet
 
     # Start the server so that it can start taking RPC calls
     # Returns false if the server is already running
-    def initialize(hostname = Socket.gethostname, port = 2000, region = 'Development')
-
+    def initialize(region = 'Development', start_port = 2000, hostname = nil)
+      hostname ||= Common.local_ip_address
+      
       # If port is in use, try the next port in sequence
       port_count = 0
       begin
         # Since we included Celluloid::IO, we're actually making a
         # Celluloid::IO::TCPServer here
-        @server   = TCPServer.new(hostname, port + port_count)
+        @server   = TCPServer.new(hostname, start_port + port_count)
         @hostname = hostname
-        @port     = port + port_count
+        @port     = start_port + port_count
         @region   = region
       rescue Errno::EADDRINUSE => exc
         if port_count < 999

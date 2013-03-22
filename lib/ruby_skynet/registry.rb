@@ -2,6 +2,7 @@ require 'sync_attr'
 require 'multi_json'
 require 'thread_safe'
 require 'gene_pool'
+require 'resolv'
 
 #
 # RubySkynet Registry Client
@@ -134,7 +135,9 @@ module RubySkynet
           end
         end
       end
-      service_registry["#{service_name}/#{version}/#{region}"]
+      if server_infos = service_registry["#{service_name}/#{version}/#{region}"]
+        server_infos.first.servers
+      end
     end
 
     # Invokes registered callbacks when a specific server is shutdown or terminates
@@ -145,6 +148,32 @@ module RubySkynet
       (@@on_server_removed_callbacks[server] ||= ThreadSafe::Array.new) << block
     end
 
+    IPV4_REG_EXP = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+
+    # Returns [Integer] the score for the supplied ip_address
+    # Score currently ranges from 0 to 4 with 4 being the best score
+    # If the IP address does not match an IP v4 address a DNS lookup will
+    # be performed
+    def self.score_for_server(ip_address)
+      score = 0
+      # Each matching element adds 1 to the score
+      # 192.168.  0.  0
+      #               1
+      #           1
+      #       1
+      #   1
+      server_match = IPV4_REG_EXP.match(ip_address) || IPV4_REG_EXP.match(Resolv::DNS.new.getaddress(ip_address).to_s)
+      if server_match
+        @@local_match ||= IPV4_REG_EXP.match(Common.local_ip_address)
+        score = 0
+        (1..4).each do |i|
+          break if @@local_match[i].to_i != server_match[i].to_i
+          score += 1
+        end
+      end
+      score
+    end
+
     ############################
     protected
 
@@ -152,12 +181,6 @@ module RubySkynet
     sync_cattr_reader :logger do
       SemanticLogger::Logger.new(self, :debug)
     end
-
-    #ServiceInfo = Struct.new(:service_name, :version, :region, :host, :port, :score)
-
-    # Format of the internal services registry
-    #   key: [String] "<service_name>/<version>/<region>"
-    #   value: [ServiceInfo]
 
     # Lazy initialize Doozer Client Connection pool
     sync_cattr_reader :doozer_pool do
@@ -224,35 +247,24 @@ module RubySkynet
 
     # Service information changed in doozer, so update internal registry
     def self.service_info_change(registry, path, value)
-      # path: "/services/TutorialService/1/Development/127.0.0.1/9000"
+      # path from doozer: "/services/TutorialService/1/Development/127.0.0.1/9000"
       e = path.split('/')
 
       # Key: [String] 'service_name/version/region'
       key = "#{e[2]}/#{e[3]}/#{e[4]}"
-      server = "#{e[5]}:#{e[6]}"
+      hostname, port = e[5], e[6]
 
       if value.strip.size > 0
         entry = MultiJson.load(value)
         if entry['Registered']
-          # Value: [Array<String>] 'host:port', 'host:port'
-          servers = (registry[key] ||= ThreadSafe::Array.new)
-          servers << server unless servers.include?(server)
-          logger.debug "#monitor Add/Update Service: #{key} => #{server}"
+          add_server(registry, key, hostname, port)
         else
-          logger.debug "#monitor Service deregistered, remove: #{key} => #{server}"
-          if registry[key]
-            registry[key].delete(server)
-            registry.delete(key) if registry[key].size == 0
-          end
+          # Service just de-registered
+          remove_server(registry, key, hostname, port, false)
         end
       else
         # Service has stopped and needs to be removed
-        logger.debug "#monitor Service stopped, remove: #{key} => #{server}"
-        if registry[key]
-          registry[key].delete(server)
-          registry.delete(key) if registry[key].size == 0
-          server_removed(server)
-        end
+        remove_server(registry, key, hostname, port, true)
       end
     end
 
@@ -268,6 +280,75 @@ module RubySkynet
           end
         end
       end
+    end
+
+    # :score:   [Integer] Score
+    # :servers: [Array<String>] 'host:port', 'host:port'
+    ServerInfo = Struct.new(:score, :servers )
+
+    # Format of the internal services registry
+    #   key: [String] "<service_name>/<version>/<region>"
+    #   value: [ServiceInfo, ServiceInfo]
+    #          Sorted by highest score first
+
+    # Add the host to the registry based on it's score
+    def self.add_server(registry, key, hostname, port)
+      server  = "#{hostname}:#{port}"
+      logger.debug "#monitor Add/Update Service: #{key} => #{server.inspect}"
+
+      server_infos = (registry[key] ||= ThreadSafe::Array.new)
+
+      # If already present, then nothing to do
+      server_info = server_infos.find{|si| si.server == server}
+      return server_info if server_info
+
+      # Look for the same score with a different server
+      score = score_for_server(hostname)
+      if server_info = server_infos.find{|si| si.score == score}
+        server_info.servers << server
+        return server_info
+      end
+
+      # New score
+      servers = ThreadSafe::Array.new
+      servers << server
+      server_info = ServerInfo.new(score, servers)
+
+      # Insert into Array in order of score
+      if index = server_infos.find_index {|si| si.score <= score}
+        server_infos.insert(index, server_info)
+      else
+        server_infos << server_info
+      end
+      server_info
+    end
+
+    # Remove the host from the registry based
+    # Returns the server instance if it was removed
+    def self.remove_server(registry, key, hostname, port, notify)
+      server = "#{hostname}:#{port}"
+      logger.debug "Remove Service: #{key} => #{server.inspect}"
+      server_info = nil
+      if server_infos = registry[key]
+        server_infos.each do |si|
+          if si.servers.delete(server)
+            server_info = si
+            break
+          end
+        end
+
+        # Found server
+        if server_info
+          # Cleanup if no more servers in server list
+          server_infos.delete(server_info) if server_info.servers.size == 0
+
+          # Cleanup if no more server infos
+          registry.delete(key) if server_infos.size == 0
+
+          server_removed(server) if notify
+        end
+      end
+      server_info
     end
 
     # Check doozer for servers matching supplied criteria

@@ -2,6 +2,7 @@ source :rubygems
 
 group :test do
   gem "shoulda"
+  gem "mocha", :require => false
 end
 
 gem "rake"

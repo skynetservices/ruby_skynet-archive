@@ -55,10 +55,8 @@ class ClientTest < Test::Unit::TestCase
 
     context "with server" do
       setup do
-        @port = 2100
         @region = 'ClientTest'
-        @hostname = '127.0.0.1'
-        RubySkynet::Server.start(@hostname, @port, @region)
+        RubySkynet::Server.start(@region)
 
         @service_name = 'ClientTestService'
         @version = 1

@@ -14,8 +14,6 @@ module RubySkynet
     module InstanceMethods
       # Implement methods that call the remote Service
       def method_missing(method, *args, &block)
-        puts "Methods: #{method}, #{args.inspect}"
-        puts "Args Size=#{args.size}"
         result = ruby_skynet_client.call(method, *args)
         # Define the method if the call was successful and no-one else already
         # created the method

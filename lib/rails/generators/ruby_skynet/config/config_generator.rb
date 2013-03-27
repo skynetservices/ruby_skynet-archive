@@ -3,8 +3,6 @@ module RubySkynet
     class ConfigGenerator < Rails::Generators::Base
       desc "Creates a Ruby Skynet configuration file at config/ruby_skynet.yml"
 
-      argument :key_path, :type => :string, :optional => false
-
       def self.source_root
         @_ruby_skynet_source_root ||= File.expand_path("../templates", __FILE__)
       end

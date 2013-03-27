@@ -21,7 +21,8 @@ namespace :ruby_skynet do
     RubySkynet::Server.load_services
 
     # Start the server
-    RubySkynet::Server.start(Rails.env)
+    RubySkynet::Server.start
+    RubySkynet::Server.wait_until_server_stops
   end
 
 end

@@ -13,8 +13,8 @@ module RubySkynet
     @@services = ThreadSafe::Hash.new
 
     # Start a single instance of the server
-    def self.start(start_port = 2000, hostname = nil)
-      @@server ||= new(start_port, hostname)
+    def self.start(start_port = nil, ip_address = nil)
+      @@server ||= new(start_port, ip_address)
 
       # Stop the skynet server on shutdown
       # To ensure services are de-registered in doozer
@@ -78,16 +78,16 @@ module RubySkynet
 
     # Start the server so that it can start taking RPC calls
     # Returns false if the server is already running
-    def initialize(start_port = 2000, hostname = nil)
-      hostname ||= Common.local_ip_address
-      start_port = start_port.to_i
+    def initialize(start_port = nil, ip_address = nil)
+      ip_address ||= RubySkynet.local_ip_address
+      start_port = (start_port || RubySkynet.server_port).to_i
       raise InvalidConfigurationException.new("Invalid Starting Port number: #{start_port}") unless start_port > 0
 
       # If port is in use, try the next port in sequence
       port_count = 0
       begin
-        @server   = ::TCPServer.new(hostname, start_port + port_count)
-        @hostname = hostname
+        @server   = ::TCPServer.new(ip_address, start_port + port_count)
+        @hostname = ip_address
         @port     = start_port + port_count
       rescue Errno::EADDRINUSE => exc
         if port_count < 999

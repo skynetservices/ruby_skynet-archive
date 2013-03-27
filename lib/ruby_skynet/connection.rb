@@ -108,7 +108,7 @@ module RubySkynet
     # Performs a synchronous call to a Skynet server
     #
     # Parameters:
-    #   service_name [String|Symbol]:
+    #   skynet_name [String|Symbol]:
     #     Name of the method to pass in the request
     #   method_name [String|Symbol]:
     #     Name of the method to pass in the request
@@ -122,14 +122,14 @@ module RubySkynet
     #
     # Raises RubySkynet::ProtocolError
     # Raises RubySkynet::SkynetException
-    def rpc_call(request_id, service_name, method_name, parameters, idempotent=false)
+    def rpc_call(request_id, skynet_name, method_name, parameters, idempotent=false)
       retry_count = 0
       header = nil
       response = nil
 
       socket.retry_on_connection_failure do |socket|
         header = {
-          'servicemethod' => "#{service_name}.Forward",
+          'servicemethod' => "#{skynet_name}.Forward",
           'seq'           => socket.user_data[:seq]
         }
 

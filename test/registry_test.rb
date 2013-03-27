@@ -89,7 +89,7 @@ class RegistryTest < Test::Unit::TestCase
         ['10.0.11.0',     0 ],
       ].each do |test|
         should "handle score #{test[1]}" do
-          RubySkynet::Common.stubs(:local_ip_address).returns("192.168.11.0")
+          RubySkynet.stubs(:local_ip_address).returns("192.168.11.0")
           assert_equal test[1], RubySkynet::Registry.score_for_server(test[0]), "Local: #{RubySkynet::Common.local_ip_address} Server: #{test[0]} Score: #{test[1]}"
         end
       end

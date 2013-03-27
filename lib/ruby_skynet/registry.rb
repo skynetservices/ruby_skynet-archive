@@ -16,10 +16,12 @@ module RubySkynet
     include SyncAttr
 
     # Service Registry has the following format
-    #  Key: [String] 'service_name/version/region'
+    #  Key: [String] 'name/version/region'
     #  Value: [Array<String>] 'host:port', 'host:port'
     sync_cattr_reader :service_registry do
-      start
+      logger.benchmark_info "Connected to Doozer" do
+        start
+      end
     end
 
     @@on_server_removed_callbacks = ThreadSafe::Hash.new
@@ -91,12 +93,12 @@ module RubySkynet
     end
 
     # Return a server that implements the specified service
-    def self.server_for(service_name, version='*', region='Development')
-      if servers = servers_for(service_name, version, region)
+    def self.server_for(name, version='*', region='Development')
+      if servers = servers_for(name, version, region)
         # Randomly select one of the servers offering the service
         servers[rand(servers.size)]
       else
-        msg = "No servers available for service: #{service_name} with version: #{version} in region: #{region}"
+        msg = "No servers available for service: #{name} with version: #{version} in region: #{region}"
         logger.warn msg
         raise ServiceUnavailable.new(msg)
       end
@@ -105,17 +107,17 @@ module RubySkynet
     # Returns [Array] of the hostname and port pair [String] that implements a particular service
     # Performs a doozer lookup to find the servers
     #
-    #   service_name:
+    #   name:
     #     Name of the service to lookup
     #   version:
     #     Version of service to locate
     #     Default: All versions
     #   region:
     #     Region to look for the service in
-    def self.registered_implementers(service_name='*', version='*', region='Development')
+    def self.registered_implementers(name='*', version='*', region='Development')
       hosts = []
       doozer_pool.with_connection do |doozer|
-        doozer.walk("/services/#{service_name}/#{version}/#{region}/*/*").each do |node|
+        doozer.walk("/services/#{name}/#{version}/#{region}/*/*").each do |node|
           entry = MultiJson.load(node.value)
           hosts << entry if entry['Registered']
         end
@@ -124,18 +126,18 @@ module RubySkynet
     end
 
     # Returns [Array<String>] a list of servers implementing the requested service
-    def self.servers_for(service_name, version='*', region='Development')
+    def self.servers_for(name, version='*', region='Development')
       if version == '*'
         # Find the highest version for the named service in this region
         version = -1
         service_registry.keys.each do |key|
-          if match = key.match(/#{service_name}\/(\d+)\/#{region}/)
+          if match = key.match(/#{name}\/(\d+)\/#{region}/)
             ver = match[1].to_i
             version = ver if ver > version
           end
         end
       end
-      if server_infos = service_registry["#{service_name}/#{version}/#{region}"]
+      if server_infos = service_registry["#{name}/#{version}/#{region}"]
         server_infos.first.servers
       end
     end
@@ -164,7 +166,7 @@ module RubySkynet
       #   1
       server_match = IPV4_REG_EXP.match(ip_address) || IPV4_REG_EXP.match(Resolv::DNS.new.getaddress(ip_address).to_s)
       if server_match
-        @@local_match ||= IPV4_REG_EXP.match(Common.local_ip_address)
+        @@local_match ||= IPV4_REG_EXP.match(RubySkynet.local_ip_address)
         score = 0
         (1..4).each do |i|
           break if @@local_match[i].to_i != server_match[i].to_i
@@ -178,9 +180,7 @@ module RubySkynet
     protected
 
     # Logging instance for this class
-    sync_cattr_reader :logger do
-      SemanticLogger::Logger.new(self, :debug)
-    end
+    include SemanticLogger::Loggable
 
     # Lazy initialize Doozer Client Connection pool
     sync_cattr_reader :doozer_pool do
@@ -250,7 +250,7 @@ module RubySkynet
       # path from doozer: "/services/TutorialService/1/Development/127.0.0.1/9000"
       e = path.split('/')
 
-      # Key: [String] 'service_name/version/region'
+      # Key: [String] 'name/version/region'
       key = "#{e[2]}/#{e[3]}/#{e[4]}"
       hostname, port = e[5], e[6]
 
@@ -287,7 +287,7 @@ module RubySkynet
     ServerInfo = Struct.new(:score, :servers )
 
     # Format of the internal services registry
-    #   key: [String] "<service_name>/<version>/<region>"
+    #   key: [String] "<name>/<version>/<region>"
     #   value: [ServiceInfo, ServiceInfo]
     #          Sorted by highest score first
 
@@ -353,16 +353,16 @@ module RubySkynet
 
     # Check doozer for servers matching supplied criteria
     # Code unused, consider deleting
-    def self.remote_servers_for(service_name, version='*', region='Development')
+    def self.remote_servers_for(name, version='*', region='Development')
       if version != '*'
-        registered_implementers(service_name, version, region).map do |host|
+        registered_implementers(name, version, region).map do |host|
           service = host['Config']['ServiceAddr']
           "#{service['IPAddress']}:#{service['Port']}"
         end
       else
         # Find the highest version of any particular service
         versions = {}
-        registered_implementers(service_name, version, region).each do |host|
+        registered_implementers(name, version, region).each do |host|
           service = host['Config']['ServiceAddr']
           (versions[version.to_i] ||= []) << "#{service['IPAddress']}:#{service['Port']}"
         end

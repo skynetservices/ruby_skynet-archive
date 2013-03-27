@@ -9,11 +9,12 @@ require 'ruby_skynet'
 
 # Register an appender if one is not already registered
 if SemanticLogger::Logger.appenders.size == 0
-  SemanticLogger::Logger.default_level = :trace
+  SemanticLogger::Logger.default_level = :debug
   SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
 end
 
-class ClientTestService
+# Service implementation
+class BaseTestService
   include RubySkynet::Service
 
   # Methods implemented by this service
@@ -38,29 +39,22 @@ class ClientTestService
 
 end
 
-# Unit Test for ResilientSocket::TCPClient
-class ClientTest < Test::Unit::TestCase
-  context RubySkynet::Client do
+# Service Client
+class BaseTestServiceClient
+  include RubySkynet::Base
 
-    context "without server" do
-      should "raise exception when cannot reach server after 5 retries" do
-        exception = assert_raise RubySkynet::ServiceUnavailable do
-          client = RubySkynet::Client.new('SomeService')
-          client.call(:test, :hello => 'there')
-        end
-        assert_match /No servers available for service: SomeService with version: \* in region: Development/, exception.message
-      end
+  # Override Name registered in skynet to match server above
+  self.skynet_name = 'BaseTestService'
+end
 
-    end
+# Unit Test
+class BaseTest < Test::Unit::TestCase
+  context RubySkynet::Base do
 
     context "with server" do
       setup do
-        @region = 'ClientTest'
         RubySkynet.region = @region
         RubySkynet::Server.start
-
-        @service_name = 'ClientTestService'
-        @version = 1
 
         @read_timeout = 3.0
       end
@@ -71,11 +65,11 @@ class ClientTest < Test::Unit::TestCase
 
       context "with client connection" do
         setup do
-          @client = RubySkynet::Client.new(@service_name, @version, @region)
+          @client = BaseTestServiceClient.new
         end
 
         should "successfully send and receive data" do
-          reply = @client.call(:test1, 'some' => 'parameters')
+          reply = @client.test1('some' => 'parameters')
           assert_equal 'test1', reply['result']
         end
 
@@ -84,7 +78,7 @@ class ClientTest < Test::Unit::TestCase
 
           exception = assert_raise ResilientSocket::ReadTimeout do
             # Read 4 bytes from server
-            @client.call('sleep', request, :read_timeout => @read_timeout)
+            @client.sleep(request, :read_timeout => @read_timeout)
           end
           assert_match /Timedout after #{@read_timeout} seconds trying to read/, exception.message
         end

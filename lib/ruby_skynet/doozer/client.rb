@@ -8,10 +8,10 @@ module RubySkynet
   module Doozer
     class Client
 
+      include SemanticLogger::Loggable
+
       # Create a resilient client connection to a Doozer server
       def initialize(params={})
-        @logger = SemanticLogger::Logger.new(self.class)
-
         # User configurable options
         params[:read_timeout]           ||= 5
         params[:connect_timeout]        ||= 3
@@ -25,7 +25,7 @@ module RubySkynet
         # Disable buffering the send since it is a RPC call
         params[:buffered] = false
 
-        @logger.trace "Socket Connection parameters", params.dup
+        logger.trace "Socket Connection parameters", params.dup
 
         # For each new connection
         params[:on_connect] = Proc.new do |socket|

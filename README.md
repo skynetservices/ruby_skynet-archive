@@ -45,8 +45,12 @@ Client to call the above Service
 require 'rubygems'
 require 'ruby_skynet'
 
-client = RubySkynet::Client.new('EchoService')
-p client.call('echo', :hello => 'world')
+class EchoService
+  include RubySkynet::Base
+end
+
+client = EchoService.new
+p client.echo(:hello => 'world')
 ```
 
 ### Logging
@@ -61,8 +65,12 @@ require 'ruby_skynet'
 SemanticLogger::Logger.default_level = :trace
 SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('skynet.log')
 
-client = RubySkynet::Client.new('EchoService')
-p client.call('echo', :hello => 'world')
+class EchoService
+  include RubySkynet::Base
+end
+
+client = EchoService.new
+p client.echo(:hello => 'world')
 ```
 
 ### Architecture
@@ -83,13 +91,6 @@ project for marshaling data for communicating with doozer
 ### Install
 
     gem install ruby_skynet
-
-### Future
-
-* Immediately drop connections to a service on a host when that instance
-  shuts down or stops. ( Doozer::Wait )
-* More intelligent selection of available Skynet services. For example
-  nearest, or looking at load etc.
 
 Development
 -----------
@@ -133,7 +134,7 @@ Reid Morrison :: reidmo@gmail.com :: @reidmorrison
 License
 -------
 
-Copyright 2012 Clarity Services, Inc.
+Copyright 2012,2013 Clarity Services, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

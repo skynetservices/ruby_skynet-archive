@@ -35,7 +35,8 @@ class ServiceTest < Test::Unit::TestCase
         @region = 'Test'
         @service_name = 'TestService'
         @version = 1
-        RubySkynet::Server.start(@region)
+        RubySkynet.region = @region
+        RubySkynet::Server.start
         sleep 0.2
       end
 

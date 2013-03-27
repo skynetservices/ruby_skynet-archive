@@ -1,0 +1,86 @@
+# Ruby Skynet Client & Server Configuration Parameters
+#   :region [String]
+#     Region name to use for service lookup
+#     Default: Rails.env
+#
+#   :services_path [String]
+#     Path within to look for service implementations that will be loaded
+#     when RubySkynet::Server.load_services is called
+#
+#   :server_port [Integer]
+#     Optional: Only required when running a server locally
+#     Starting port for server to listen on
+#     If this port is in use the next available port will be used
+#     upto 999 above the server_port value
+#
+#   :local_ip_address [String]
+#     Optional: The ip address at which this server instance can be reached
+#     by remote Skynet clients
+#     Note: Must be an IP address, not the hostname
+#
+#   Doozer Configuration Parameters
+#   :doozer
+#     :servers [Array of String]
+#       Array of URL's of doozer servers to connect to with port numbers
+#       ['server1:2000', 'server2:2000']
+#
+#       The second server will only be attempted once the first server
+#       cannot be connected to or has timed out on connect
+#       A read failure or timeout will not result in switching to the second
+#       server, only a connection failure or during an automatic reconnect
+#
+#     :read_timeout [Float]
+#       Time in seconds to timeout on read
+#       Can be overridden by supplying a timeout in the read call
+#
+#     :connect_timeout [Float]
+#       Time in seconds to timeout when trying to connect to the server
+#
+#     :connect_retry_count [Fixnum]
+#       Number of times to retry connecting when a connection fails
+#
+#     :connect_retry_interval [Float]
+#       Number of seconds between connection retry attempts after the first failed attempt
+#
+#     :server_selector [Symbol]
+#       When multiple doozer servers are supplied using :servers, this option will
+#       determine which server is selected from the list
+#         :ordered
+#           Select a server in the order supplied in the array, with the first
+#           having the highest priority. The second server will only be connected
+#           to if the first server is unreachable
+#         :random
+#           Randomly select a server from the list every time a connection
+#           is established, including during automatic connection recovery.
+#         Default: :ordered
+defaults: &defaults
+  :services_path: app/services
+  :server_port:   2000
+  :doozer:
+    :servers:
+    - 127.0.0.1:8046
+    :read_timeout:           5
+    :connect_timeout:        3
+    :connect_retry_count:    10
+    :connect_retry_interval: 0.5
+    :server_selector:        :random
+
+development:
+  <<: *defaults
+  :region: Development
+
+test:
+  <<: *defaults
+  :region: Test
+
+release:
+  <<: *defaults
+  :region: Release
+
+hotfix:
+  <<: *defaults
+  :region: Hotfix
+
+production:
+  <<: *defaults
+  :region: Production

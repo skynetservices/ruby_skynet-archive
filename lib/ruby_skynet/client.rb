@@ -14,7 +14,7 @@ module RubySkynet
     # concurrently from multiple threads at the same time
     #
     # Parameters:
-    #   :service_name
+    #   :skynet_name
     #     Name of the service to look for and connect to on Skynet
     #
     #   :version
@@ -33,9 +33,9 @@ module RubySkynet
     #
     #  tutorial_service = RubySkynet::Client.new('TutorialService')
     #  p tutorial_service.call('Add', :value => 5)
-    def initialize(service_name, version='*', region='Development')
-      @service_name = service_name
-      @logger       = SemanticLogger::Logger.new("#{self.class.name}: #{service_name}/#{version}/#{region}")
+    def initialize(skynet_name, version='*', region='Development')
+      @skynet_name = skynet_name
+      @logger       = SemanticLogger::Logger.new("#{self.class.name}: #{skynet_name}/#{version}/#{region}")
       @version      = version
       @region       = region
     end
@@ -57,12 +57,12 @@ module RubySkynet
       # https://github.com/skynetservices/skynet/blob/master/protocol.md
       request_id = BSON::ObjectId.new.to_s
       @logger.tagged request_id do
-        @logger.benchmark_info "Called Skynet Service: #{@service_name}.#{method_name}" do
+        @logger.benchmark_info "Called Skynet Service: #{@skynet_name}.#{method_name}" do
           retries = 0
           # If it cannot connect to a server, try a different server
           begin
-            Connection.with_connection(Registry.server_for(@service_name, @version, @region), connection_params) do |connection|
-              connection.rpc_call(request_id, @service_name, method_name, parameters)
+            Connection.with_connection(Registry.server_for(@skynet_name, @version, @region), connection_params) do |connection|
+              connection.rpc_call(request_id, @skynet_name, method_name, parameters)
             end
           rescue ResilientSocket::ConnectionFailure => exc
             if (retries < 3) && exc.cause.is_a?(Errno::ECONNREFUSED)

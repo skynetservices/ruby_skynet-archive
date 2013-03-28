@@ -193,7 +193,7 @@ module RubySkynet
         :logger       => logger,
         :close_proc   => :close
       ) do
-        Doozer::Client.new(doozer_config)
+        RubyDoozer::Client.new(doozer_config)
       end
     end
 
@@ -230,7 +230,7 @@ module RubySkynet
     def self.watch_registry(revision)
       logger.info "Start monitoring #{DOOZER_SERVICES_PATH}"
       # This thread must use its own dedicated doozer connection
-      doozer = Doozer::Client.new(doozer_config)
+      doozer = RubyDoozer::Client.new(doozer_config)
 
       # Watch for any changes
       doozer.watch(DOOZER_SERVICES_PATH, revision) do |node|

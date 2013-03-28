@@ -28,7 +28,7 @@ task :gem  do |t|
     spec.add_dependency 'resilient_socket'
     spec.add_dependency 'multi_json', '>= 1.6.1'
     spec.add_dependency 'bson'
-    spec.add_dependency 'ruby_protobuf'
+    spec.add_dependency 'ruby_doozer'
     spec.add_dependency 'gene_pool'
   end
   Gem::Package.build gemspec

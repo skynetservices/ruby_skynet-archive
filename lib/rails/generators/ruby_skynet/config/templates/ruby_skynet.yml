@@ -1,10 +1,10 @@
 # Ruby Skynet Client & Server Configuration Parameters
 #   :region [String]
-#     Region name to use for service lookup
+#     Region name to use for service lookups
 #     Default: Rails.env
 #
 #   :services_path [String]
-#     Path within to look for service implementations that will be loaded
+#     Path within which to look for service implementations that will be loaded
 #     when RubySkynet::Server.load_services is called
 #
 #   :server_port [Integer]
@@ -53,6 +53,10 @@
 #           Randomly select a server from the list every time a connection
 #           is established, including during automatic connection recovery.
 #         Default: :ordered
+#
+#     :pool_size [Integer]
+#       Maximum size of the connection pool to doozer
+#       Default: 10
 defaults: &defaults
   :services_path: app/services
   :server_port:   2000
@@ -64,6 +68,11 @@ defaults: &defaults
     :connect_retry_count:    10
     :connect_retry_interval: 0.5
     :server_selector:        :random
+    # Doozer Connection Pool settings
+    :pool_size:              10
+    :pool_timeout:           30
+    :pool_warn_timeout:      2
+    :pool_idle_timeout:      600
 
 development:
   <<: *defaults

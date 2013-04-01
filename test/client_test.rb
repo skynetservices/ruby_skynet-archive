@@ -58,6 +58,8 @@ class ClientTest < Test::Unit::TestCase
         @region = 'ClientTest'
         RubySkynet.region = @region
         RubySkynet::Server.start
+        # Give doozer time to push out the presence of the service above
+        sleep 0.1
 
         @service_name = 'ClientTestService'
         @version = 1

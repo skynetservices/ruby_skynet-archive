@@ -7,10 +7,6 @@ require 'ruby_skynet'
 SemanticLogger::Logger.default_level = :trace
 SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('echo_server.log')
 
-# Specify Port and Hostname to listen for requests on
-RubySkynet::Server.port = 2020
-RubySkynet::Server.hostname = '127.0.0.1'
-
 # Just echo back any parameters received when the echo method is called
 class EchoService
   include RubySkynet::Service

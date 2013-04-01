@@ -16,7 +16,7 @@ namespace :ruby_skynet do
     end
 
     # Connect to doozer
-    RubySkynet::Registry.service_registry
+    RubySkynet.services
 
     RubySkynet::Server.load_services
 

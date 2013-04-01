@@ -5,13 +5,13 @@ require 'ruby_skynet/ruby_skynet'
 require 'ruby_doozer'
 
 module RubySkynet
-  autoload :Registry,   'ruby_skynet/registry'
-  autoload :Connection, 'ruby_skynet/connection'
-  autoload :Base,       'ruby_skynet/base'
-  autoload :Common,     'ruby_skynet/common'
-  autoload :Client,     'ruby_skynet/client'
-  autoload :Service,    'ruby_skynet/service'
-  autoload :Server,     'ruby_skynet/server'
+  autoload :Base,            'ruby_skynet/base'
+  autoload :Common,          'ruby_skynet/common'
+  autoload :Connection,      'ruby_skynet/connection'
+  autoload :Client,          'ruby_skynet/client'
+  autoload :Service,         'ruby_skynet/service'
+  autoload :Server,          'ruby_skynet/server'
+  autoload :ServiceRegistry, 'ruby_skynet/service_registry'
 end
 
 if defined?(Rails)

@@ -5,7 +5,7 @@ require 'resilient_socket'
 require 'sync_attr'
 
 #
-# RubySkynet Connection
+# RubySkynet Client Connection
 #
 # Handles connecting to Skynet Servers as a host:port pair
 #
@@ -237,7 +237,7 @@ module RubySkynet
       end
 
       # Cleanup corresponding connection pool when a server terminates
-      Registry.on_server_removed(server) do
+      RubySkynet.services.on_server_removed(server) do
         pool = @@connection_pools.delete(server)
         # Cannot close all the connections since they could still be in use
         pool.remove_idle(0) if pool

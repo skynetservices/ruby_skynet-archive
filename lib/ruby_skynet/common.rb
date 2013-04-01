@@ -1,3 +1,4 @@
+require 'bson'
 require 'socket'
 
 module RubySkynet

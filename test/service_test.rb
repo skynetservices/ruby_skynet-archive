@@ -7,10 +7,8 @@ require 'shoulda'
 require 'ruby_skynet'
 
 # Register an appender if one is not already registered
-if SemanticLogger::Logger.appenders.size == 0
-  SemanticLogger::Logger.default_level = :trace
-  SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
-end
+SemanticLogger.default_level = :trace
+SemanticLogger.add_appender('test.log') if SemanticLogger.appenders.size == 0
 
 class TestService
   include RubySkynet::Service

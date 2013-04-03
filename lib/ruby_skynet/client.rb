@@ -8,6 +8,17 @@ require 'bson'
 #
 module RubySkynet
   class Client
+    include Base
+
+    attr_reader :skynet_name, :skynet_version, :skynet_region
+
+    # Version of the Skynet service to use
+    # By default it will connect to the latest version
+    # Default: '*'
+    def self.skynet_version
+      @skynet_version ||= '*'
+    end
+
     # Returns a new RubySkynet Client for the named service
     #
     # Calls to an instance of the Client are thread-safe and can be called
@@ -15,29 +26,45 @@ module RubySkynet
     #
     # Parameters:
     #   :skynet_name
+    #     Only required when creating instance of RubySkynet::Client directly
+    #     Otherwise it defaults to the name of the class
     #     Name of the service to look for and connect to on Skynet
     #
-    #   :version
+    #   :skynet_version
     #     Optional version number of the service in Skynet
     #     Default: '*' being the latest version of the service
     #
-    #   :region
+    #   :skynet_region
     #     Optional region for this service in Skynet
-    #     Default: 'Development'
+    #     Default: RubySkynet.region
     #
-    # Example
+    # Example using Client class
     #
     #  require 'ruby_skynet'
-    #  SemanticLogger.default_level = :trace
-    #  SemanticLogger.appenders << SemanticLogger::Appender::File(STDOUT)
+    #  SemanticLogger.default_level = :info
+    #  SemanticLogger.add_appender(STDOUT)
+    #
+    #  class EchoService < RubySkynet::Client
+    #  end
+    #
+    #  echo_service = EchoService.new
+    #  p echo_service.echo(:value => 5)
+    #
+    # Example using Ruby Client directly
+    #
+    #  require 'ruby_skynet'
+    #  SemanticLogger.default_level = :info
+    #  SemanticLogger.add_appender(STDOUT)
     #
     #  tutorial_service = RubySkynet::Client.new('TutorialService')
     #  p tutorial_service.call('Add', :value => 5)
-    def initialize(skynet_name, version='*', region='Development')
-      @skynet_name = skynet_name
-      @logger       = SemanticLogger::Logger.new("#{self.class.name}: #{skynet_name}/#{version}/#{region}")
-      @version      = version
-      @region       = region
+    def initialize(skynet_name=self.class.skynet_name, skynet_version=self.class.skynet_version, skynet_region=self.class.skynet_region)
+      @skynet_name    = skynet_name
+      @skynet_version = skynet_version
+      @skynet_region  = skynet_region
+      self.logger = SemanticLogger["#{self.class.name}: #{@skynet_name}/#{@skynet_version}/#{@skynet_region}"]
+
+      raise "skynet_name is mandatory when using RubySkynet::Client directly" if @skynet_name == RubySkynet::Client.name
     end
 
     # Performs a synchronous call to the Skynet Service
@@ -56,13 +83,13 @@ module RubySkynet
       # Skynet requires BSON RPC Calls to have the following format:
       # https://github.com/skynetservices/skynet/blob/master/protocol.md
       request_id = BSON::ObjectId.new.to_s
-      @logger.tagged request_id do
-        @logger.benchmark_info "Called Skynet Service: #{@skynet_name}.#{method_name}" do
+      logger.tagged request_id do
+        logger.benchmark_info "Called Skynet Service: #{skynet_name}.#{method_name}" do
           retries = 0
           # If it cannot connect to a server, try a different server
           begin
-            Connection.with_connection(::RubySkynet.services.server_for(@skynet_name, @version, @region), connection_params) do |connection|
-              connection.rpc_call(request_id, @skynet_name, method_name, parameters)
+            Connection.with_connection(::RubySkynet.services.server_for(skynet_name, skynet_version, skynet_region), connection_params) do |connection|
+              connection.rpc_call(request_id, skynet_name, method_name, parameters)
             end
           rescue ResilientSocket::ConnectionFailure => exc
             if (retries < 3) && exc.cause.is_a?(Errno::ECONNREFUSED)
@@ -73,6 +100,20 @@ module RubySkynet
           end
         end
       end
+    end
+
+    # Implement methods that call the remote Service
+    def method_missing(method, *args, &block)
+      result = call(method, *args)
+
+      # #TODO if Service returns method undefined, call super
+      #
+      # Define the method if the call was successful and no other thread has
+      # already created the method
+      if result[:exception].nil? && !self.class.method_defined?(method)
+        self.class.send(:define_method, method) {|*args| call(method, *args)}
+      end
+      result
     end
 
   end

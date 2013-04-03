@@ -205,13 +205,13 @@ module RubySkynet
 
     # Registers a Service Class as being available at this server
     def register_service(klass)
-      logger.debug "Registering Service: #{klass.name} with name: #{klass.skynet_name}"
+      logger.info "Registering Service: #{klass.name} with name: #{klass.skynet_name}"
       ::RubySkynet.services.register_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
     end
 
     # De-register service from this server
     def deregister_service(klass)
-      logger.debug "De-registering Service: #{klass.name} with name: #{klass.skynet_name}"
+      logger.info "De-registering Service: #{klass.name} with name: #{klass.skynet_name}"
       ::RubySkynet.services.deregister_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
     end
 

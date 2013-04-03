@@ -5,7 +5,7 @@ group :test do
 end
 
 gem "rake"
-gem "semantic_logger"
+gem "semantic_logger", ">= 2.1"
 gem "resilient_socket"
 # Doozer Client
 gem "ruby_doozer"

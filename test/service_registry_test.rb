@@ -7,10 +7,8 @@ require 'shoulda'
 require 'ruby_skynet'
 
 # Register an appender if one is not already registered
-if SemanticLogger::Logger.appenders.size == 0
-  SemanticLogger::Logger.default_level = :trace
-  SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('test.log')
-end
+SemanticLogger.default_level = :trace
+SemanticLogger.add_appender('test.log') if SemanticLogger.appenders.size == 0
 
 # Unit Test
 class ServiceRegistryTest < Test::Unit::TestCase
@@ -23,12 +21,17 @@ class ServiceRegistryTest < Test::Unit::TestCase
       @hostname     = '127.0.0.1'
       @port         = 2100
       @service_key  = "/services/#{@service_name}/#{@version}/#{@region}/#{@hostname}/#{@port}"
+      RubySkynet.local_ip_address = @hostname
+    end
+
+    teardown do
+      RubySkynet.local_ip_address = nil
     end
 
     context "without a registered service" do
       should "not be in doozer" do
         RubySkynet.services.send(:doozer_pool).with_connection do |doozer|
-          assert_equal '', doozer[@service_key]
+          assert_equal nil, doozer[@service_key]
         end
       end
     end
@@ -36,12 +39,14 @@ class ServiceRegistryTest < Test::Unit::TestCase
     context "with a registered service" do
       setup do
         RubySkynet.services.register_service(@service_name, @version, @region, @hostname, @port)
+        RubySkynet.services.register_service(@service_name, @version, @region+'BLAH', @hostname, @port)
         # Allow time for doozer callback that service was registered
         sleep 0.1
       end
 
       teardown do
         RubySkynet.services.deregister_service(@service_name, @version, @region, @hostname, @port)
+        RubySkynet.services.deregister_service(@service_name, @version, @region+'BLAH', @hostname, @port)
         # Allow time for doozer callback that service was deregistered
         sleep 0.1
         # No servers should be in the local registry
@@ -78,9 +83,10 @@ class ServiceRegistryTest < Test::Unit::TestCase
 
         should "using * version match" do
           assert servers = RubySkynet.services.servers_for(@service_name, '*', @region)
-          assert_equal 3, servers.size, RubySkynet.services.to_h.to_s
-          assert_equal "#{@hostname}:#{@port}", servers.first
-          assert_equal "#{@hostname}:#{@port+3}", servers.last
+          assert_equal 3, servers.size, servers
+          assert_equal true, servers.include?("#{@hostname}:#{@port}"), servers
+          assert_equal true, servers.include?("#{@hostname}:#{@port+1}"), servers
+          assert_equal true, servers.include?("#{@hostname}:#{@port+3}"), servers
         end
       end
 

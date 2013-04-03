@@ -3,9 +3,8 @@ $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'rubygems'
 require 'ruby_skynet'
 
-# Log trace information to a log file
-SemanticLogger::Logger.default_level = :trace
-SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('echo_server.log')
+SemanticLogger.default_level = :info
+SemanticLogger.add_appender(STDOUT)
 
 # Just echo back any parameters received when the echo method is called
 class EchoService
@@ -15,6 +14,7 @@ class EchoService
   # Must take a Hash as input
   # Must Return a Hash response or nil for no response
   def echo(params)
+    params['echo'] = true
     params
   end
 end
@@ -25,4 +25,3 @@ RubySkynet::Server.start
 puts "Press enter to shutdown server"
 gets
 
-RubySkynet::Server.stop

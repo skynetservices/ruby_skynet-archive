@@ -7,24 +7,6 @@ module RubySkynet
       base.extend ClassMethods
       base.class_eval do
         include SemanticLogger::Loggable
-        include InstanceMethods
-      end
-    end
-
-    module InstanceMethods
-      # Implement methods that call the remote Service
-      def method_missing(method, *args, &block)
-        result = ruby_skynet_client.call(method, *args)
-        # Define the method if the call was successful and no-one else already
-        # created the method
-        if result[:exception].nil? && !self.class.method_defined?(method)
-          self.class.send(:define_method, method) {|*args| ruby_skynet_client.call(method, *args)}
-        end
-        result
-      end
-
-      def ruby_skynet_client
-        @ruby_skynet_client ||= RubySkynet::Client.new(self.class.skynet_name, self.class.skynet_version || '*', self.class.skynet_region)
       end
     end
 

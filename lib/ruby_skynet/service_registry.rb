@@ -99,7 +99,7 @@ module RubySkynet
     end
 
     # Return a server that implements the specified service
-    def server_for(name, version='*', region='Development')
+    def server_for(name, version='*', region=RubySkynet.region)
       if servers = servers_for(name, version, region)
         # Randomly select one of the servers offering the service
         servers[rand(servers.size)]
@@ -111,7 +111,7 @@ module RubySkynet
     end
 
     # Returns [Array<String>] a list of servers implementing the requested service
-    def servers_for(name, version='*', region='Development')
+    def servers_for(name, version='*', region=RubySkynet.region)
       if version == '*'
         # Find the highest version for the named service in this region
         version = -1
@@ -173,7 +173,6 @@ module RubySkynet
     # Add the host to the registry based on it's score
     def add_server(key, hostname, port)
       server  = "#{hostname}:#{port}"
-      logger.debug "#monitor Add/Update Service: #{key} => #{server.inspect}"
 
       server_infos = (@registry[key] ||= ThreadSafe::Array.new)
 
@@ -183,6 +182,7 @@ module RubySkynet
 
       # Look for the same score with a different server
       score = self.class.score_for_server(hostname, RubySkynet.local_ip_address)
+      logger.info "Service: #{key} now running at #{server} with score #{score}"
       if server_info = server_infos.find{|si| si.score == score}
         server_info.servers << server
         return server_info
@@ -206,7 +206,7 @@ module RubySkynet
     # Returns the server instance if it was removed
     def remove_server(key, hostname, port, notify)
       server = "#{hostname}:#{port}"
-      logger.debug "Remove Service: #{key} => #{server.inspect}"
+      logger.info "Service: #{key} stopped running at #{server}"
       server_info = nil
       if server_infos = @registry[key]
         server_infos.each do |si|
@@ -235,7 +235,7 @@ module RubySkynet
       if @on_server_removed_callbacks && (callbacks = @on_server_removed_callbacks.delete(server))
         callbacks.each do |block|
           begin
-            logger.info "Calling callback for server: #{server}"
+            logger.debug "Calling callback for server: #{server}"
             block.call(server)
           rescue Exception => exc
             logger.error("Exception during a callback for server: #{server}", exc)

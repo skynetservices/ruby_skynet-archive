@@ -3,8 +3,12 @@ $LOAD_PATH.unshift File.dirname(__FILE__) + '/../lib'
 require 'rubygems'
 require 'ruby_skynet'
 
-SemanticLogger::Logger.default_level = :trace
-SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('echo_client.log')
+SemanticLogger.default_level = :info
+SemanticLogger.add_appender(STDOUT)
 
-client = RubySkynet::Client.new('EchoService')
-p client.call('echo', :hello => 'world')
+class Echo < RubySkynet::Client
+  self.skynet_name = "EchoService"
+end
+
+client = Echo.new
+p client.echo(:hello => 'world')

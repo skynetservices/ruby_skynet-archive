@@ -26,9 +26,10 @@ task :gem  do |t|
     spec.has_rdoc    = true
     spec.add_dependency 'semantic_logger', '>= 2.1.0'
     spec.add_dependency 'resilient_socket', '>= 0.5.0'
-    spec.add_dependency 'multi_json', '>= 1.6.1'
     spec.add_dependency 'bson', '>= 1.5.2'
-    spec.add_dependency 'ruby_doozer', '>= 0.6.0'
+    spec.add_dependency 'gene_pool', '>= 1.3.0'
+    spec.add_dependency 'sync_attr', '>= 1.0.0'
+    spec.add_dependency 'ruby_doozer', '>= 0.7.0'
     spec.add_dependency 'gene_pool', '>= 1.3.0'
   end
   Gem::Package.build gemspec

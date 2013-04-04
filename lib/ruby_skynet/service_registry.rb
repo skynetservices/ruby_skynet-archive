@@ -1,5 +1,4 @@
 require 'sync_attr'
-require 'multi_json'
 require 'thread_safe'
 require 'gene_pool'
 require 'resolv'
@@ -57,7 +56,7 @@ module RubySkynet
         @current_revision = doozer.current_revision
         # Fetch all the configuration information from Doozer and set the internal copy
         doozer.walk(path, @current_revision) do |path, value|
-          service_info_changed(relative_path(path), value)
+          service_info_changed(relative_key(path), value)
         end
       end
 
@@ -76,7 +75,7 @@ module RubySkynet
 
     # Register the supplied service at this Skynet Server host and Port
     def register_service(name, version, region, hostname, port)
-      config = {
+      self["#{name}/#{version}/#{region}/#{hostname}/#{port}"] = {
         "Config" => {
           "UUID"    => "#{hostname}:#{port}-#{$$}-#{name}-#{version}",
           "Name"    => name,
@@ -90,7 +89,6 @@ module RubySkynet
         },
         "Registered" => true
       }
-      self["#{name}/#{version}/#{region}/#{hostname}/#{port}"] = MultiJson.encode(config)
     end
 
     # Deregister the supplied service from the Registry
@@ -148,8 +146,7 @@ module RubySkynet
       hostname, port = e[3], e[4]
 
       if value
-        entry = MultiJson.load(value)
-        if entry['Registered']
+        if value['Registered']
           add_server(key, hostname, port)
         else
           # Service just de-registered

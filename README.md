@@ -41,15 +41,16 @@ RubySkynet::Server.start
 ```
 
 Client to call the above Service
+
 ```ruby
 require 'rubygems'
 require 'ruby_skynet'
 
-class EchoService
-  include RubySkynet::Base
+class Echo < RubySkynet::Client
+  self.skynet_name = "EchoService"
 end
 
-client = EchoService.new
+client = Echo.new
 p client.echo(:hello => 'world')
 ```
 
@@ -62,14 +63,14 @@ calls can be enabled as follows:
 require 'rubygems'
 require 'ruby_skynet'
 
-SemanticLogger::Logger.default_level = :trace
-SemanticLogger::Logger.appenders << SemanticLogger::Appender::File.new('skynet.log')
+SemanticLogger.default_level = :info
+SemanticLogger.add_appender('skynet.log')
 
-class EchoService
-  include RubySkynet::Base
+class Echo < RubySkynet::Client
+  self.skynet_name = "EchoService"
 end
 
-client = EchoService.new
+client = Echo.new
 p client.echo(:hello => 'world')
 ```
 

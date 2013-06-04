@@ -48,7 +48,8 @@ module RubySkynet
     def self.register_service(klass)
       raise InvalidServiceException.new("#{klass.inspect} is not a RubySkynet::Service") unless klass.respond_to?(:skynet_name) && klass.respond_to?(:skynet_version) && klass.respond_to?(:skynet_region)
 
-      if previous_klass = @@services[klass.skynet_name] && (previous_klass.name != klass.name)
+      previous_klass = @@services[klass.skynet_name]
+      if previous_klass && (previous_klass.name != klass.name)
         logger.warn("Service with name: #{klass.skynet_name} is already registered to a different implementation:#{previous_klass.name}")
       end
       @@services[klass.skynet_name] = klass

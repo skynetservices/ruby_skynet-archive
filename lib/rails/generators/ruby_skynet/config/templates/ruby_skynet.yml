@@ -60,19 +60,26 @@
 defaults: &defaults
   :services_path: app/services
   :server_port:   2000
-  :doozer:
+
+  # Use ZooKeeper for centralized Service Registry : Recommended
+  :zookeeper:
     :servers:
     - 127.0.0.1:8046
-    :read_timeout:           5
-    :connect_timeout:        3
-    :connect_retry_count:    10
-    :connect_retry_interval: 0.5
-    :server_selector:        :random
-    # Doozer Connection Pool settings
-    :pool_size:              10
-    :pool_timeout:           30
-    :pool_warn_timeout:      2
-    :pool_idle_timeout:      600
+
+# Replace :zookeeper above if using doozer as the centralized Service Registry
+#  :doozer:
+#    :servers:
+#    - 127.0.0.1:8046
+#    :read_timeout:           5
+#    :connect_timeout:        3
+#    :connect_retry_count:    10
+#    :connect_retry_interval: 0.5
+#    :server_selector:        :random
+#    # Doozer Connection Pool settings
+#    :pool_size:              10
+#    :pool_timeout:           30
+#    :pool_warn_timeout:      2
+#    :pool_idle_timeout:      600
 
 development:
   <<: *defaults

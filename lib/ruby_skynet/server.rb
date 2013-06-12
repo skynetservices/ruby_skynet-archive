@@ -17,7 +17,7 @@ module RubySkynet
       @@server ||= new(start_port, ip_address)
 
       # Stop the skynet server on shutdown
-      # To ensure services are de-registered in doozer
+      # To ensure services are de-registered in the service registry
       at_exit do
         ::RubySkynet::Server.stop
       end
@@ -207,13 +207,13 @@ module RubySkynet
     # Registers a Service Class as being available at this server
     def register_service(klass)
       logger.info "Registering Service: #{klass.name} with name: #{klass.skynet_name}"
-      ::RubySkynet.services.register_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
+      ::RubySkynet.service_registry.register_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
     end
 
     # De-register service from this server
     def deregister_service(klass)
       logger.info "De-registering Service: #{klass.name} with name: #{klass.skynet_name}"
-      ::RubySkynet.services.deregister_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
+      ::RubySkynet.service_registry.deregister_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
     end
 
     # Called for each message received from the client

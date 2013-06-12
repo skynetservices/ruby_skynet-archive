@@ -235,7 +235,7 @@ module RubySkynet
       end
 
       # Cleanup corresponding connection pool when a server terminates
-      RubySkynet.services.on_server_removed(server) do
+      RubySkynet.service_registry.on_server_removed(server) do
         pool = @@connection_pools.delete(server)
         # Cannot close all the connections since they could still be in use
         pool.remove_idle(0) if pool

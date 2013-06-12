@@ -74,23 +74,27 @@ client = Echo.new
 p client.echo(:hello => 'world')
 ```
 
-### Architecture
-
-ruby_skynet implements its own doozer client which has been tested against
-the doozer fork: https://github.com/4ad/doozerd.
-The doozer client uses the active [ruby_protobuf](https://github.com/macks/ruby-protobuf)
-project for marshaling data for communicating with doozer
-
 ### Dependencies
 
-- Ruby MRI 1.8.7 (or above), Ruby 1.9.3,  Or JRuby 1.6.3 (or above)
+- Ruby 1.8.7, Ruby 1.9.3, Ruby 2.0.0, or JRuby 1.6.3 (or higher)
 - [SemanticLogger](http://github.com/ClarityServices/semantic_logger)
 - [ResilientSocket](https://github.com/ClarityServices/resilient_socket)
-- [ruby_protobuf](https://github.com/macks/ruby-protobuf)
 - [multi_json](https://github.com/intridea/multi_json)
+
+# One of the following Service Registry Implementations
+- ZooKeeper Ruby Client [zk](https://github.com/slyphon/zk)
+- [ruby_doozer](http://github.com/skynetservices/ruby_doozer)
 
 ### Install
 
+Installing for a ZooKeeper centralized service registry - Recommended
+
+    gem install zk
+    gem install ruby_skynet
+
+OR, Installing for a Doozer centralized service registry
+
+    gem install ruby_doozer
     gem install ruby_skynet
 
 Development

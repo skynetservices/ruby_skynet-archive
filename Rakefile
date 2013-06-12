@@ -29,8 +29,6 @@ task :gem  do |t|
     spec.add_dependency 'bson', '>= 1.5.2'
     spec.add_dependency 'gene_pool', '>= 1.3.0'
     spec.add_dependency 'sync_attr', '>= 1.0.0'
-    spec.add_dependency 'ruby_doozer', '>= 0.7.0'
-    spec.add_dependency 'gene_pool', '>= 1.3.0'
   end
   Gem::Package.build gemspec
 end

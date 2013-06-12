@@ -13,7 +13,7 @@ gem "ruby_doozer"
 gem "thread_safe"
 # Connection pool
 gem "gene_pool"
-# For looking up Service entries in Doozer
+# For looking up Service entries in Service Registry
 gem "multi_json"
 # Wire format when communicating with services
 gem "bson"

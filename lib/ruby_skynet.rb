@@ -2,7 +2,7 @@ require 'semantic_logger'
 require 'ruby_skynet/exceptions'
 require 'ruby_skynet/version'
 require 'ruby_skynet/ruby_skynet'
-require 'ruby_doozer'
+require 'ruby_skynet/zookeeper'
 
 module RubySkynet
   autoload :Base,            'ruby_skynet/base'

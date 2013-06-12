@@ -30,7 +30,7 @@ class ServiceRegistryTest < Test::Unit::TestCase
 
     context "without a registered service" do
       should "not be in doozer" do
-        RubySkynet.services.send(:doozer_pool).with_connection do |doozer|
+        RubySkynet.service_registry.send(:doozer_pool).with_connection do |doozer|
           assert_equal nil, doozer[@service_key]
         end
       end
@@ -38,29 +38,29 @@ class ServiceRegistryTest < Test::Unit::TestCase
 
     context "with a registered service" do
       setup do
-        RubySkynet.services.register_service(@service_name, @version, @region, @hostname, @port)
-        RubySkynet.services.register_service(@service_name, @version, @region+'BLAH', @hostname, @port)
+        RubySkynet.service_registry.register_service(@service_name, @version, @region, @hostname, @port)
+        RubySkynet.service_registry.register_service(@service_name, @version, @region+'BLAH', @hostname, @port)
         # Allow time for doozer callback that service was registered
         sleep 0.1
       end
 
       teardown do
-        RubySkynet.services.deregister_service(@service_name, @version, @region, @hostname, @port)
-        RubySkynet.services.deregister_service(@service_name, @version, @region+'BLAH', @hostname, @port)
+        RubySkynet.service_registry.deregister_service(@service_name, @version, @region, @hostname, @port)
+        RubySkynet.service_registry.deregister_service(@service_name, @version, @region+'BLAH', @hostname, @port)
         # Allow time for doozer callback that service was deregistered
         sleep 0.1
         # No servers should be in the local registry
-        assert_equal nil, RubySkynet.services.servers_for(@service_name, @version, @region)
+        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, @region)
       end
 
       should "find server using exact match" do
-        assert servers = RubySkynet.services.servers_for(@service_name, @version, @region)
+        assert servers = RubySkynet.service_registry.servers_for(@service_name, @version, @region)
         assert_equal 1, servers.size
         assert_equal "#{@hostname}:#{@port}", servers.first
       end
 
       should "find server using * version match" do
-        assert servers = RubySkynet.services.servers_for(@service_name, '*', @region)
+        assert servers = RubySkynet.service_registry.servers_for(@service_name, '*', @region)
         assert_equal 1, servers.size
         assert_equal "#{@hostname}:#{@port}", servers.first
       end
@@ -68,21 +68,21 @@ class ServiceRegistryTest < Test::Unit::TestCase
       context "with multiple servers" do
         setup do
           @second_hostname     = '127.0.10.1'
-          RubySkynet.services.register_service(@service_name, @version, @region, @hostname, @port+1)
-          RubySkynet.services.register_service(@service_name, @version, @region, @hostname, @port+3)
-          RubySkynet.services.register_service(@service_name, @version-1, @region, @hostname, @port+2)
-          RubySkynet.services.register_service(@service_name, @version, @region, @second_hostname, @port)
+          RubySkynet.service_registry.register_service(@service_name, @version, @region, @hostname, @port+1)
+          RubySkynet.service_registry.register_service(@service_name, @version, @region, @hostname, @port+3)
+          RubySkynet.service_registry.register_service(@service_name, @version-1, @region, @hostname, @port+2)
+          RubySkynet.service_registry.register_service(@service_name, @version, @region, @second_hostname, @port)
         end
 
         teardown do
-          RubySkynet.services.deregister_service(@service_name, @version, @region, @hostname, @port+1)
-          RubySkynet.services.deregister_service(@service_name, @version, @region, @hostname, @port+3)
-          RubySkynet.services.deregister_service(@service_name, @version-1, @region, @hostname, @port+2)
-          RubySkynet.services.deregister_service(@service_name, @version, @region, @second_hostname, @port)
+          RubySkynet.service_registry.deregister_service(@service_name, @version, @region, @hostname, @port+1)
+          RubySkynet.service_registry.deregister_service(@service_name, @version, @region, @hostname, @port+3)
+          RubySkynet.service_registry.deregister_service(@service_name, @version-1, @region, @hostname, @port+2)
+          RubySkynet.service_registry.deregister_service(@service_name, @version, @region, @second_hostname, @port)
         end
 
         should "using * version match" do
-          assert servers = RubySkynet.services.servers_for(@service_name, '*', @region)
+          assert servers = RubySkynet.service_registry.servers_for(@service_name, '*', @region)
           assert_equal 3, servers.size, servers
           assert_equal true, servers.include?("#{@hostname}:#{@port}"), servers
           assert_equal true, servers.include?("#{@hostname}:#{@port+1}"), servers
@@ -91,19 +91,19 @@ class ServiceRegistryTest < Test::Unit::TestCase
       end
 
       should "return nil when service not found" do
-        assert_equal nil, RubySkynet.services.servers_for('MissingService', @version, @region)
+        assert_equal nil, RubySkynet.service_registry.servers_for('MissingService', @version, @region)
       end
 
       should "return nil when version not found" do
-        assert_equal nil, RubySkynet.services.servers_for(@service_name, @version+1, @region)
+        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version+1, @region)
       end
 
       should "return nil when region not found" do
-        assert_equal nil, RubySkynet.services.servers_for(@service_name, @version, 'OtherRegion')
+        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, 'OtherRegion')
       end
 
       should "be in doozer" do
-        RubySkynet.services.send(:doozer_pool).with_connection do |doozer|
+        RubySkynet.service_registry.send(:doozer_pool).with_connection do |doozer|
           assert_equal true, doozer[@service_key].length > 20
         end
       end

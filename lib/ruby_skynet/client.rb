@@ -88,7 +88,7 @@ module RubySkynet
           retries = 0
           # If it cannot connect to a server, try a different server
           begin
-            Connection.with_connection(::RubySkynet.services.server_for(skynet_name, skynet_version, skynet_region), connection_params) do |connection|
+            Connection.with_connection(::RubySkynet.service_registry.server_for(skynet_name, skynet_version, skynet_region), connection_params) do |connection|
               connection.rpc_call(request_id, skynet_name, method_name, parameters)
             end
           rescue ResilientSocket::ConnectionFailure => exc

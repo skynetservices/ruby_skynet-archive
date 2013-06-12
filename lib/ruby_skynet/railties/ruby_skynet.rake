@@ -15,7 +15,7 @@ namespace :ruby_skynet do
       RubySkynet.configure!(cfg_file, environment)
     end
 
-    # Connect to doozer
+    # Connect to services registry
     RubySkynet.services
 
     RubySkynet::Server.load_services

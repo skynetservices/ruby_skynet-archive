@@ -16,7 +16,7 @@ module RubySkynet
         include SemanticLogger::Loggable
       end
       # Register the service with the Server
-      # The server will publish the server to Doozer when the server is running
+      # The server will publish the server to services registry when the server is running
       Server.register_service(base)
     end
 

@@ -81,7 +81,7 @@ p client.echo(:hello => 'world')
 - [ResilientSocket](https://github.com/ClarityServices/resilient_socket)
 - [multi_json](https://github.com/intridea/multi_json)
 
-# One of the following Service Registry Implementations
+One of the following Service Registry Implementations
 - ZooKeeper Ruby Client [zk](https://github.com/slyphon/zk)
 - [ruby_doozer](http://github.com/skynetservices/ruby_doozer)
 

@@ -9,6 +9,8 @@ gem "semantic_logger", ">= 2.1"
 gem "resilient_socket"
 # Doozer Client
 gem "ruby_doozer"
+# Zookeeper Client
+gem "zk"
 # Thread Safe Hash and Array
 gem "thread_safe"
 # Connection pool

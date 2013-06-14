@@ -1,6 +1,7 @@
 require 'sync_attr'
 
 module RubySkynet
+  include SyncAttr
 
   # Returns the default region for all Ruby Skynet Clients and Services
   def self.region
@@ -46,8 +47,11 @@ module RubySkynet
 
   # Returns the services registry which holds the service names
   # and the hosts on which they are running
-  def self.service_registry
-    @@service_registry
+  #
+  # By default it connects to a local ZooKeeper instance
+  # Use .configure! to supply a configuration file with any other settings
+  sync_cattr_reader :service_registry do
+    ServiceRegistry.new(:root => "/services")
   end
 
   # Set the services registry

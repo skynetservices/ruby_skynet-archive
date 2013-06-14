@@ -7,7 +7,7 @@ module RubySkynet
       # Deserialize from JSON entries in Doozer
       module Deserializer
         def self.deserialize(value)
-          return nil unless value
+          return value if value.nil? || (value == '')
 
           if value.strip.start_with?('{') || value.strip.start_with?('[{')
             symbolize(MultiJson.load(value))

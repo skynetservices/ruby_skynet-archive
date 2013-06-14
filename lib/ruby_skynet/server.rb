@@ -126,6 +126,18 @@ module RubySkynet
       @listener_thread.join
     end
 
+    # Registers a Service Class as being available at this server
+    def register_service(klass)
+      logger.info "Registering Service: #{klass.name} with name: #{klass.skynet_name}"
+      ::RubySkynet.service_registry.register_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
+    end
+
+    # De-register service from this server
+    def deregister_service(klass)
+      logger.info "De-registering Service: #{klass.name} with name: #{klass.skynet_name}"
+      ::RubySkynet.service_registry.deregister_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
+    end
+
     ############################################################################
     protected
 
@@ -202,18 +214,6 @@ module RubySkynet
       # Disconnect from the client
       client.close
       logger.debug "Disconnected from the client"
-    end
-
-    # Registers a Service Class as being available at this server
-    def register_service(klass)
-      logger.info "Registering Service: #{klass.name} with name: #{klass.skynet_name}"
-      ::RubySkynet.service_registry.register_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
-    end
-
-    # De-register service from this server
-    def deregister_service(klass)
-      logger.info "De-registering Service: #{klass.name} with name: #{klass.skynet_name}"
-      ::RubySkynet.service_registry.deregister_service(klass.skynet_name, klass.skynet_version || 1, klass.skynet_region, @hostname, @port)
     end
 
     # Called for each message received from the client

@@ -1,8 +1,7 @@
-require 'sync_attr'
+require 'semantic_logger'
 require 'thread_safe'
 require 'gene_pool'
 require 'resolv'
-require 'ruby_doozer'
 
 #
 # RubySkynet Sevices Registry
@@ -11,71 +10,45 @@ require 'ruby_doozer'
 # all services and which servers they are available on.
 #
 module RubySkynet
-  class ServiceRegistry < RubyDoozer::Registry
-    include SyncAttr
+  class ServiceRegistry
     include SemanticLogger::Loggable
-
-    IPV4_REG_EXP = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
-
-    # Returns [Integer] the score for the supplied ip_address
-    # Score currently ranges from 0 to 4 with 4 being the best score
-    # If the IP address does not match an IP v4 address a DNS lookup will
-    # be performed
-    def self.score_for_server(ip_address, local_ip_address)
-      score = 0
-      # Each matching element adds 1 to the score
-      # 192.168.  0.  0
-      #               1
-      #           1
-      #       1
-      #   1
-      server_match = IPV4_REG_EXP.match(ip_address) || IPV4_REG_EXP.match(Resolv::DNS.new.getaddress(ip_address).to_s)
-      if server_match
-        local_match = IPV4_REG_EXP.match(local_ip_address)
-        score = 0
-        (1..4).each do |i|
-          break if local_match[i].to_i != server_match[i].to_i
-          score += 1
-        end
-      end
-      score
-    end
 
     # Create a service registry
     # See: RubyDoozer::Registry for the parameters
     def initialize(params)
-      super
-
       # Registry has the following format
       #  Key: [String] 'name/version/region'
       #  Value: [Array<String>] 'host:port', 'host:port'
-      @registry = ThreadSafe::Hash.new
+      @cache = ThreadSafe::Hash.new
 
-      path = "#{@root_path}/**"
-      doozer_pool.with_connection do |doozer|
-        @current_revision = doozer.current_revision
-        # Fetch all the configuration information from Doozer and set the internal copy
-        doozer.walk(path, @current_revision) do |path, value|
-          service_info_changed(relative_key(path), value)
+      # Supply block to load the current keys from the Registry
+      if params[:doozer]
+        require 'ruby_doozer'
+        @registry = Doozer::Registry.new(params) do |key, value|
+          service_info_changed(key, value)
         end
+      else
+        require 'ruby_skynet/zookeeper'
+        @registry = RubySkynet::Zookeeper::Registry.new(params) do |key, value|
+          service_info_changed(key, value)
+        end
+        # Zookeeper Registry also supports on_create
+        @registry.on_create {|path, value| service_info_changed(path, value) }
       end
 
-      # Start monitoring thread
-      monitor_thread
-
       # Register Callbacks
-      on_update {|path, value| service_info_changed(path, value) }
-      on_delete {|path, value| service_info_changed(path) }
+      @registry.on_update {|path, value| service_info_changed(path, value) }
+      @registry.on_delete {|path|        service_info_changed(path) }
     end
 
     # Returns the Service Registry as a Hash
     def to_h
-      @registry.dup
+      @cache.dup
     end
 
     # Register the supplied service at this Skynet Server host and Port
     def register_service(name, version, region, hostname, port)
-      self["#{name}/#{version}/#{region}/#{hostname}/#{port}"] = {
+      @registry["#{name}/#{version}/#{region}/#{hostname}/#{port}"] = {
         "Config" => {
           "UUID"    => "#{hostname}:#{port}-#{$$}-#{name}-#{version}",
           "Name"    => name,
@@ -93,7 +66,7 @@ module RubySkynet
 
     # Deregister the supplied service from the Registry
     def deregister_service(name, version, region, hostname, port)
-      delete("#{name}/#{version}/#{region}/#{hostname}/#{port}")
+      @registry.delete("#{name}/#{version}/#{region}/#{hostname}/#{port}")
     end
 
     # Return a server that implements the specified service
@@ -113,14 +86,14 @@ module RubySkynet
       if version == '*'
         # Find the highest version for the named service in this region
         version = -1
-        @registry.keys.each do |key|
+        @cache.keys.each do |key|
           if match = key.match(/#{name}\/(\d+)\/#{region}/)
             ver = match[1].to_i
             version = ver if ver > version
           end
         end
       end
-      if server_infos = @registry["#{name}/#{version}/#{region}"]
+      if server_infos = @cache["#{name}/#{version}/#{region}"]
         server_infos.first.servers
       end
     end
@@ -171,7 +144,7 @@ module RubySkynet
     def add_server(key, hostname, port)
       server  = "#{hostname}:#{port}"
 
-      server_infos = (@registry[key] ||= ThreadSafe::Array.new)
+      server_infos = (@cache[key] ||= ThreadSafe::Array.new)
 
       # If already present, then nothing to do
       server_info = server_infos.find{|si| si.servers.include?(server)}
@@ -205,7 +178,7 @@ module RubySkynet
       server = "#{hostname}:#{port}"
       logger.info "Service: #{key} stopped running at #{server}"
       server_info = nil
-      if server_infos = @registry[key]
+      if server_infos = @cache[key]
         server_infos.each do |si|
           if si.servers.delete(server)
             server_info = si
@@ -219,7 +192,7 @@ module RubySkynet
           server_infos.delete(server_info) if server_info.servers.size == 0
 
           # Cleanup if no more server infos
-          @registry.delete(key) if server_infos.size == 0
+          @cache.delete(key) if server_infos.size == 0
 
           server_removed(server) if notify
         end
@@ -239,6 +212,32 @@ module RubySkynet
           end
         end
       end
+    end
+
+    IPV4_REG_EXP = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/
+
+    # Returns [Integer] the score for the supplied ip_address
+    # Score currently ranges from 0 to 4 with 4 being the best score
+    # If the IP address does not match an IP v4 address a DNS lookup will
+    # be performed
+    def self.score_for_server(ip_address, local_ip_address)
+      score = 0
+      # Each matching element adds 1 to the score
+      # 192.168.  0.  0
+      #               1
+      #           1
+      #       1
+      #   1
+      server_match = IPV4_REG_EXP.match(ip_address) || IPV4_REG_EXP.match(Resolv::DNS.new.getaddress(ip_address).to_s)
+      if server_match
+        local_match = IPV4_REG_EXP.match(local_ip_address)
+        score = 0
+        (1..4).each do |i|
+          break if local_match[i].to_i != server_match[i].to_i
+          score += 1
+        end
+      end
+      score
     end
 
   end

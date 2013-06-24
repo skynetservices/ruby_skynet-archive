@@ -91,10 +91,10 @@ module RubySkynet
         @subscriptions = ThreadSafe::Hash.new
 
         # Create the root path if it does not already exist
-        @zookeeper.mkdir_p(@root) unless @zookeeper.exists?(@root)
+        @zookeeper.mkdir_p(@root) unless (@root == '' || @zookeeper.exists?(@root))
 
         # Start watching registry for any changes
-        get_recursive(@root, watch=true, &block)
+        get_recursive(@root == '' ? '/' : @root, watch=true, &block)
 
         at_exit do
           close
@@ -270,7 +270,7 @@ module RubySkynet
       # Returns the full key given a relative key
       def full_key(relative_key)
         relative_key = strip_slash(relative_key)
-        relative_key == '' ? @root : "#{@root}/#{relative_key}"
+        relative_key == '' ? @root : File.join(@root,relative_key)
       end
 
       # Returns the full key given a relative key
@@ -358,7 +358,7 @@ module RubySkynet
             new_nodes = previous_children ? (current_children - previous_children) : current_children
             new_nodes.each do |child|
               get_recursive("#{path}/#{child}", true) do |key, value, version|
-                node_created(key, @deserializer.deserialize(value), version)
+                node_created(key, value, version)
               end
             end
             # Ignore Deleted Child Nodes since they will also get event.node_deleted?
@@ -398,7 +398,7 @@ module RubySkynet
 
             # Also watch children nodes
             children.each do |child|
-              node_count += get_recursive("#{full_path}/#{child}", watch, &block)
+              node_count += get_recursive(File.join(full_path,child), watch, &block)
             end
           else
             @subscriptions[full_path] = Subscription.new(subscription, nil) if watch

@@ -51,7 +51,7 @@ module RubySkynet
   # By default it connects to a local ZooKeeper instance
   # Use .configure! to supply a configuration file with any other settings
   sync_cattr_reader :service_registry do
-    ServiceRegistry.new(:root => "/services")
+    ServiceRegistry.new(:root => '/services')
   end
 
   # Set the services registry
@@ -89,8 +89,8 @@ module RubySkynet
     # Extract just the zookeeper or doozer configuration element
     key = config[:zookeeper] ? :zookeeper : :doozer
     RubySkynet.service_registry = ServiceRegistry.new(
-      :root_path => "/services",
-      key        => cfg.delete(key)
+      :root => '/services',
+      key   => cfg.delete(key)
     )
 
     cfg.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}

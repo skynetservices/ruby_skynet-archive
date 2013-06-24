@@ -111,6 +111,7 @@ module RubySkynet
 
     # Service information changed in doozer, so update internal registry
     def service_info_changed(path, value=nil)
+      logger.info("service_info_changed: #{path}", value)
       # path: "TutorialService/1/Development/127.0.0.1/9000"
       e = path.split('/')
 

@@ -4,7 +4,7 @@ module RubySkynet
   module Zookeeper
     module Json
 
-      # Deserialize from JSON entries in Doozer
+      # Deserialize from JSON entries in Zookeeper
       module Deserializer
         def self.deserialize(value)
           return value if value.nil? || (value == '')

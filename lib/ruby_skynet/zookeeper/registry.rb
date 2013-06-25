@@ -65,6 +65,7 @@ module RubySkynet
         # Strip trailing '/' if supplied
         @root = @root[0..-2] if @root.end_with?("/")
         @root_with_trail = "#{@root}/"
+        @root = '/' if @root == ''
 
         zookeeper_config = params.delete(:zookeeper) || {}
         if zookeeper_config.is_a?(ZK::Client::Base)
@@ -91,10 +92,10 @@ module RubySkynet
         @subscriptions = ThreadSafe::Hash.new
 
         # Create the root path if it does not already exist
-        @zookeeper.mkdir_p(@root) unless (@root == '' || @zookeeper.exists?(@root))
+        @zookeeper.mkdir_p(@root) unless (@root == '/' || @zookeeper.exists?(@root))
 
         # Start watching registry for any changes
-        get_recursive(@root == '' ? '/' : @root, watch=true, &block)
+        get_recursive(@root, watch=true, &block)
 
         at_exit do
           close
@@ -275,7 +276,8 @@ module RubySkynet
 
       # Returns the full key given a relative key
       def relative_key(full_key)
-        full_key.sub(@root_with_trail, '')
+        key = full_key.sub(@root_with_trail, '')
+        key == '' ? '/' : key
       end
 
       ##########################################
@@ -342,24 +344,29 @@ module RubySkynet
             # The list of nodes has changed - Does not say if it was added or removed
             path = event.path
             logger.debug "Node '#{path}' Child changed", event.inspect
-            current_children = @zookeeper.children(path, :watch => true)
-            previous_children = nil
+            begin
+              current_children = @zookeeper.children(path, :watch => true)
+              previous_children = nil
 
-            # Only register if not already registered.
-            subscription = @subscriptions[path]
-            if subscription
-              previous_children = subscription.children
-              subscription.children = current_children
-            else
-              @subscriptions[path] = Subscription.new(@zookeeper.register(path, &@watch_proc), current_children)
-            end
-
-            # Created Child Nodes
-            new_nodes = previous_children ? (current_children - previous_children) : current_children
-            new_nodes.each do |child|
-              get_recursive("#{path}/#{child}", true) do |key, value, version|
-                node_created(key, value, version)
+              # Only register if not already registered.
+              subscription = @subscriptions[path]
+              if subscription
+                previous_children = subscription.children
+                subscription.children = current_children
+              else
+                @subscriptions[path] = Subscription.new(@zookeeper.register(path, &@watch_proc), current_children)
               end
+
+              # Created Child Nodes
+              new_nodes = previous_children ? (current_children - previous_children) : current_children
+              new_nodes.each do |child|
+                get_recursive(File.join(path,child), true) do |key, value, version|
+                  node_created(key, value, version)
+                end
+              end
+            rescue ZK::Exceptions::NoNode
+              # This node itself may have already been removed
+              # node_deleted? above will remove its subscription
             end
             # Ignore Deleted Child Nodes since they will also get event.node_deleted?
           elsif event.node_created?

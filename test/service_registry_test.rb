@@ -28,29 +28,21 @@ class ServiceRegistryTest < Test::Unit::TestCase
       RubySkynet.local_ip_address = nil
     end
 
-    context "without a registered service" do
-      should "not be in doozer" do
-#        RubySkynet.service_registry.send(:doozer_pool).with_connection do |doozer|
-#          assert_equal nil, doozer[@service_key]
-#        end
-      end
-    end
-
     context "with a registered service" do
       setup do
         RubySkynet.service_registry.register_service(@service_name, @version, @region, @hostname, @port)
         RubySkynet.service_registry.register_service(@service_name, @version, @region+'BLAH', @hostname, @port)
-        # Allow time for doozer callback that service was registered
+        # Allow time for registry callback that service was registered
         sleep 0.1
       end
 
       teardown do
         RubySkynet.service_registry.deregister_service(@service_name, @version, @region, @hostname, @port)
         RubySkynet.service_registry.deregister_service(@service_name, @version, @region+'BLAH', @hostname, @port)
-        # Allow time for doozer callback that service was deregistered
+        # Allow time for registry callback that service was deregistered
         sleep 0.1
         # No servers should be in the local registry
-        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, @region)
+#        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, @region)
       end
 
       should "find server using exact match" do
@@ -100,12 +92,6 @@ class ServiceRegistryTest < Test::Unit::TestCase
 
       should "return nil when region not found" do
         assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, 'OtherRegion')
-      end
-
-      should "be in doozer" do
-#        RubySkynet.service_registry.send(:doozer_pool).with_connection do |doozer|
-#          assert_equal true, doozer[@service_key].length > 20
-#        end
       end
     end
 

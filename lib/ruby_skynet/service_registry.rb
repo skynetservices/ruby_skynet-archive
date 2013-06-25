@@ -222,6 +222,7 @@ module RubySkynet
     # If the IP address does not match an IP v4 address a DNS lookup will
     # be performed
     def self.score_for_server(ip_address, local_ip_address)
+      ip_address = '127.0.0.1' if ip_address == 'localhost'
       score = 0
       # Each matching element adds 1 to the score
       # 192.168.  0.  0

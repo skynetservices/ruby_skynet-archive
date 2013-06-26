@@ -18,7 +18,16 @@
 #     by remote Skynet clients
 #     Note: Must be an IP address, not the hostname
 #
-#   Doozer Configuration Parameters
+#   Zookeeper Configuration Parameters - Recommended
+#   :zookeeper
+#     :servers [Array of String]
+#       Array of URL's of doozer servers to connect to with port numbers
+#       ['server1:2000', 'server2:2000']
+#
+#     :timeout [Float]
+#       Time in seconds to timeout when trying to connect to the server
+#
+#   Doozer Configuration Parameters - Optional - Instead of :zookeeper above
 #   :doozer
 #     :servers [Array of String]
 #       Array of URL's of doozer servers to connect to with port numbers
@@ -64,7 +73,8 @@ defaults: &defaults
   # Use ZooKeeper for centralized Service Registry : Recommended
   :zookeeper:
     :servers:
-    - 127.0.0.1:8046
+    - 127.0.0.1:2181
+    :connect_timeout: 10
 
 # Replace :zookeeper above if using doozer as the centralized Service Registry
 #  :doozer:

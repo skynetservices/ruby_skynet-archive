@@ -1,6 +1,11 @@
 require 'thread_safe'
 require 'semantic_logger'
-require 'zk'
+require 'zookeeper'
+
+# Replace the Zookeeper logger for consistency
+::Zookeeper.logger = SemanticLogger[::Zookeeper]
+# Map Zookeeper debug logging to trace level to reduce verbosity in logs
+::Zookeeper.logger.instance_eval "def debug(*args,&block)\n  trace(*args,&block)\nend"
 
 module RubySkynet
   module Zookeeper
@@ -15,18 +20,11 @@ module RubySkynet
     # is never returned, nor is it required when a key is supplied as input.
     # For example, with a root of /foo/bar, any paths passed in will leave
     # out the root: host/name
-    #
-    # Warning: Due to the way ZooKeeper works, if any node is set to a value of ''
-    #          then no on_update notifications will be sent.
-    #          On the other hand on_delete notifications will be invoked
-    #          for every element in a path including the leaf node.
-    #          This is because in ZooKeeper directories can also have a value,
-    #          and all nodes created will have at least a value of ''
     class Registry
       # Logging instance for this class
       include SemanticLogger::Loggable
 
-      attr_reader :root, :zookeeper
+      attr_reader :root
 
       # Create a Registry instance to manage a information within Zookeeper
       #
@@ -36,13 +34,16 @@ module RubySkynet
       #   significant traffic since it will also monitor ZooKeeper Admin changes
       #   Mandatory
       #
-      # :zookeeper [Hash|ZK]
+      # :zookeeper [Hash|ZooKeeper]
       #   ZooKeeper configuration information, or an existing
-      #   ZK ( ZooKeeper client) instance
+      #   ZooKeeper ( ZooKeeper client) instance
       #
       #   :servers [Array of String]
       #     Array of URL's of ZooKeeper servers to connect to with port numbers
       #     ['server1:2181', 'server2:2181']
+      #
+      #   :connect_timeout [Float]
+      #     Time in seconds to timeout when trying to connect to the server
       #
       # Optional Block
       #   The block will be called for every key found in the registry on startup
@@ -68,17 +69,18 @@ module RubySkynet
         @root = '/' if @root == ''
 
         zookeeper_config = params.delete(:zookeeper) || {}
-        if zookeeper_config.is_a?(ZK::Client::Base)
+        if zookeeper_config.is_a?(::Zookeeper::Client)
           @zookeeper = zookeeper_config
         else
           servers = zookeeper_config.delete(:servers) || ['127.0.0.1:2181']
+          connect_timeout = (zookeeper_config.delete(:connect_timeout) || 10).to_f
 
           # Generate warning log entries for any unknown configuration options
           zookeeper_config.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: zookeeper.#{k}"}
 
           # Create Zookeeper connection
           #   server1:2181,server2:2181,server3:2181
-          @zookeeper = ZK.new(servers.join(','))
+          @zookeeper = ::Zookeeper.new(servers.join(','), connect_timeout, watcher)
         end
 
         # Allow the serializer and deserializer implementations to be replaced
@@ -88,14 +90,11 @@ module RubySkynet
         # Generate warning log entries for any unknown configuration options
         params.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: #{k}"}
 
-        # Hash with Array values containing the list of children fro each node, if any
-        @subscriptions = ThreadSafe::Hash.new
-
-        # Create the root path if it does not already exist
-        @zookeeper.mkdir_p(@root) unless (@root == '/' || @zookeeper.exists?(@root))
+        # Hash with Array values containing the list of children for each node, if any
+        @children = ThreadSafe::Hash.new
 
         # Start watching registry for any changes
-        get_recursive(@root, watch=true, &block)
+        get_recursive(@root, watch=true, create_path=true, &block)
 
         at_exit do
           close
@@ -105,23 +104,33 @@ module RubySkynet
       # Retrieve the latest value from a specific path from the registry
       # Returns nil when the key is not present in the registry
       def [](key)
-        begin
-          value, stat = @zookeeper.get(full_key(key))
-          @deserializer.deserialize(value)
-        rescue ZK::Exceptions::NoNode
-          nil
+        result = @zookeeper.get(:path => full_key(key))
+        case result[:rc]
+        when ::Zookeeper::ZOK
+          @deserializer.deserialize(result[:data])
+        when ::Zookeeper::ZNONODE
+          # Return nil if node not present
+        else
+          check_rc(result)
         end
       end
 
       # Replace the latest value at a specific key
+      # Supplying a nil value will result in the key being deleted in ZooKeeper
       def []=(key,value)
+        if value.nil?
+          delete(key)
+          return value
+        end
         v = @serializer.serialize(value)
         k = full_key(key)
-        begin
-          @zookeeper.set(k, v)
-        rescue ZK::Exceptions::NoNode
+        result = @zookeeper.set(:path => k, :data => v)
+        if result[:rc] == ::Zookeeper::ZNONODE
           create_path(k, v)
+        else
+          check_rc(result)
         end
+        value
       end
 
       # Delete the value at a specific key and any parent nodes if they
@@ -134,20 +143,21 @@ module RubySkynet
       #
       # Returns nil
       def delete(key, remove_empty_parents=true)
-        begin
+        result = @zookeeper.delete(:path => full_key(key))
+        return if result[:rc] == ::Zookeeper::ZNONODE
+        check_rc(result)
+
+        if remove_empty_parents
           paths = key.split('/')
           paths.pop
-          @zookeeper.delete(full_key(key))
-          if remove_empty_parents
-            while paths.size > 0
-              parent_path = full_key(paths.join('/'))
-              value, stat = @zookeeper.get(parent_path)
-              break if value != '' || (stat.num_children > 0)
-              @zookeeper.delete(parent_path)
-              paths.pop
-            end
+          while paths.size > 0
+            parent_path = full_key(paths.join('/'))
+            result = @zookeeper.get(:path => parent_path)
+            break if (result[:rc] == ::Zookeeper::ZNONODE) || (result[:data] != nil)
+
+            delete(parent_path)
+            paths.pop
           end
-        rescue ZK::Exceptions::NoNode
         end
         nil
       end
@@ -266,8 +276,6 @@ module RubySkynet
       ##########################################
       protected
 
-      Subscription = Struct.new(:subscription, :children)
-
       # Returns the full key given a relative key
       def full_key(relative_key)
         relative_key = strip_slash(relative_key)
@@ -294,7 +302,7 @@ module RubySkynet
       #   Navigates through tree and creates all required parents with no values
       #   as needed to create child node with its value
       # Note: Value must already be serialized
-      def create_path(full_path, value='')
+      def create_path(full_path, value=nil)
         paths = full_path.split('/')
         # Don't create the child node yet
         paths.pop
@@ -302,9 +310,81 @@ module RubySkynet
         path = ''
         paths.each do |p|
           path << "/#{p}"
-          @zookeeper.create(path) unless @zookeeper.exists?(path)
+          # Ignore errors since it may already exist
+          @zookeeper.create(:path => path)
         end
-        @zookeeper.create(full_path, value)
+        if value
+          @zookeeper.create(:path => full_path, :data => value)
+        else
+          @zookeeper.create(:path => full_path)
+        end
+      end
+
+      # returns the watcher proc for this registry instances
+      def watcher
+        # Subscription block to call for watch events
+        @watch_proc ||= Proc.new do |event_hash|
+          path = event_hash[:path]
+          case event_hash[:type]
+          when ::Zookeeper::ZOO_CHANGED_EVENT
+            logger.debug "Node '#{path}' Changed", event_hash
+
+            # Fetch current value and re-subscribe
+            result = @zookeeper.get(:path => path, :watcher => @watch_proc)
+            check_rc(result)
+            value = @deserializer.deserialize(result[:data])
+            stat = result[:stat]
+
+            # Invoke on_update callbacks
+            node_updated(relative_key(path), value, stat.version)
+
+          when ::Zookeeper::ZOO_DELETED_EVENT
+            # A node has been deleted
+            # TODO How to ignore child deleted when it is a directory, not a leaf
+            logger.debug "Node '#{path}' Deleted", event_hash
+            @children.delete(path)
+            node_deleted(relative_key(path))
+
+          when ::Zookeeper::ZOO_CHILD_EVENT
+            # The list of nodes has changed - Does not say if it was added or removed
+            logger.debug "Node '#{path}' Child changed", event_hash
+            result = @zookeeper.get_children(:path => path, :watcher => @watch_proc)
+
+            # This node could have been deleted already
+            if result[:rc] == ::Zookeeper::ZOK
+              current_children = result[:children]
+              previous_children = @children[path]
+
+              # Save children so that we can later identify new children
+              @children[path] = current_children
+
+              # New Child Nodes
+              new_nodes = previous_children ? (current_children - previous_children) : current_children
+              new_nodes.each do |child|
+                get_recursive(File.join(path,child), true) do |key, value, version|
+                  node_created(key, value, version)
+                end
+              end
+              # Ignore Deleted Child Nodes since they will be handled by the Deleted Node event
+            end
+
+          when ::Zookeeper::ZOO_CREATED_EVENT
+            # Node created events are only created for paths that were deleted
+            # and then created again
+            # No op - This is covered by node_child created event
+            logger.debug "Node '#{path}' Created - No op", event_hash
+
+          when ::Zookeeper::ZOO_SESSION_EVENT
+            logger.debug "Session Event: #{@zookeeper.state_by_value(event_hash[:state])}", event_hash
+
+          when ::Zookeeper::ZOO_NOTWATCHING_EVENT
+            logger.debug "Ignoring ZOO_NOTWATCHING_EVENT", event_hash
+
+          else
+            # TODO Need to re-load registry when re-connected
+            logger.warn "Ignoring unknown event", event_hash
+          end
+        end
       end
 
       # Recursively fetches all the values in the registry and optionally
@@ -317,104 +397,61 @@ module RubySkynet
       #
       # Example:
       #  get_recursive(full_key(relative_path), true)
-      def get_recursive(full_path, watch=false, &block)
-        # Subscription block to call for watch events
-        @watch_proc ||= Proc.new do |event|
-          if event.node_changed?
-            path = event.path
-            logger.debug "Node '#{path}' Changed", event.inspect
+      def get_recursive(full_path, watch=false, create_path=true, &block)
+        watch_proc = watcher if watch
 
-            # Fetch current value and re-subscribe
-            value, stat = @zookeeper.get(path, :watch => true)
+        # Get value for this node
+        result = @zookeeper.get(:path => full_path, :watcher => watch_proc)
 
-            # Don't call change for intermediate nodes in the tree unless they have a value
-            node_updated(relative_key(path), @deserializer.deserialize(value), stat.version) #if (value != '') || (stat.num_children == 0)
-
-          elsif event.node_deleted?
-            # A node has been deleted
-            # TODO How to ignore child deleted when it is a directory, not a leaf
-            path = event.path
-            logger.debug "Node '#{path}' Deleted", event.inspect
-            if subscription = @subscriptions.delete(path)
-              subscription.subscription.unregister
-            end
-            node_deleted(relative_key(path))
-
-          elsif event.node_child?
-            # The list of nodes has changed - Does not say if it was added or removed
-            path = event.path
-            logger.debug "Node '#{path}' Child changed", event.inspect
-            begin
-              current_children = @zookeeper.children(path, :watch => true)
-              previous_children = nil
-
-              # Only register if not already registered.
-              subscription = @subscriptions[path]
-              if subscription
-                previous_children = subscription.children
-                subscription.children = current_children
-              else
-                @subscriptions[path] = Subscription.new(@zookeeper.register(path, &@watch_proc), current_children)
-              end
-
-              # Created Child Nodes
-              new_nodes = previous_children ? (current_children - previous_children) : current_children
-              new_nodes.each do |child|
-                get_recursive(File.join(path,child), true) do |key, value, version|
-                  node_created(key, value, version)
-                end
-              end
-            rescue ZK::Exceptions::NoNode
-              # This node itself may have already been removed
-              # node_deleted? above will remove its subscription
-            end
-            # Ignore Deleted Child Nodes since they will also get event.node_deleted?
-          elsif event.node_created?
-            # Node created events are only created for paths that were deleted
-            # and then created again
-            # No op - This is covered by node_child created event
-            logger.debug "Node '#{event.path}' Created - No op", event.inspect
-          else
-            # TODO Need to re-load registry when re-connected
-            logger.warn "Ignoring unknown event", event.inspect
-          end
+        # Create the path if it does not exist
+        if create_path && (result[:rc] == ::Zookeeper::ZNONODE)
+          create_path(full_path)
+          result = @zookeeper.get(:path => full_path, :watcher => watch_proc)
         end
 
-        node_count = 0
-        begin
-          # Register the Watch Block against this path
-          subscription = @zookeeper.register(full_path, &@watch_proc) if watch
+        # Cannot find this node
+        return 0 if result[:rc] == ::Zookeeper::ZNONODE
 
-          # Get value for this node
-          value, stat = @zookeeper.get(full_path, :watch => watch)
+        check_rc(result)
+        value = @deserializer.deserialize(result[:data])
+        stat = result[:stat]
 
-          # ZooKeeper assigns an empty string to all parent nodes when no value is supplied
-          # Call block if this is a leaf node, or if it is a parent node with a value
-          if block && value != '' #((stat.num_children == 0) || value != '')
-            block.call(relative_key(full_path), @deserializer.deserialize(value), stat.version)
-          end
+        # ZooKeeper assigns a nil value to all parent nodes when no value is supplied
+        # Call block if this is a leaf node, or if it is a parent node with a value
+        if block && ((stat.num_children == 0) || value != nil)
+          block.call(relative_key(full_path), value, stat.version, stat.num_children)
+        end
 
-          # Ephemeral nodes cannot have children
-          if !stat.ephemeral? && (watch || (stat.num_children > 0))
-            # Also watch this node for child changes
-            children = @zookeeper.children(full_path, :watch => watch)
+        # Iterate over children if any
+        node_count = 1
+        # Ephemeral nodes cannot have children
+        if !(stat.ephemeral_owner && (stat.ephemeral_owner != 0)) && (watch || (stat.num_children > 0))
+          # Also watch this node for child changes
+          result = @zookeeper.get_children(:path => full_path, :watcher => watch_proc)
+
+          # This node could have been deleted already
+          if result[:rc] == ::Zookeeper::ZOK
+            children = result[:children]
 
             # Save the current list of children so that we can figure out what
             # a child changed event actually means
-            @subscriptions[full_path] = Subscription.new(subscription, children) if watch
+            @children[full_path] = children if watch
 
             # Also watch children nodes
             children.each do |child|
               node_count += get_recursive(File.join(full_path,child), watch, &block)
             end
-          else
-            @subscriptions[full_path] = Subscription.new(subscription, nil) if watch
           end
-
-          node_count += 1
-        rescue ZK::Exceptions::NoNode
         end
         node_count
+      end
+
+      # Checks the return code from ZooKeeper and raises an exception if it is non-zero
+      def check_rc(result)
+        if result[:rc] != ::Zookeeper::ZOK
+          logger.error "Zookeeper failure", result
+          ::Zookeeper::Exceptions.raise_on_error(result[:rc])
+        end
       end
 
       # The key was created in the registry

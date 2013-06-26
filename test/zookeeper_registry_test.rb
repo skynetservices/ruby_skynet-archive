@@ -5,6 +5,7 @@ require 'rubygems'
 require 'test/unit'
 require 'shoulda'
 require 'ruby_skynet/zookeeper'
+require 'date'
 
 # NOTE:
 # This test assumes that ZooKeeper is running locally on the default port
@@ -69,13 +70,17 @@ class ZookeeperRegistryTest < Test::Unit::TestCase
     context "with registry" do
       setup do
         @registry = RubySkynet::Zookeeper::Registry.new(:root => "/registrytest")
+        @registry.each_pair {|k,v, ver, num_children| @registry.delete(k) if num_children == 0}
         @test_data.each_pair {|k,v| @registry[k] = v}
+        @path = 'a/b/c/d/e/f/g/h'
+        @registry[@path] = 'hello'
       end
 
       def teardown
         if @registry
-          @test_data.each_pair {|k,v| @registry.delete(k)}
-          @registry.delete("three")
+          @registry.each_pair {|k,v, ver, num_children| @registry.delete(k) if num_children == 0}
+          # Allow callbacks to complete so that errors are not generated on close
+          sleep 0.1
           @registry.close
         end
       end
@@ -102,6 +107,11 @@ class ZookeeperRegistryTest < Test::Unit::TestCase
         sleep 0.3
         result = @registry['three']
         assert_equal 'value', result
+      end
+
+      should "#delete parent paths when no other leaf nodes exist" do
+        @registry.delete(@path)
+        assert_equal nil, @registry['a']
       end
 
       [nil, '*'].each do |monitor_path|

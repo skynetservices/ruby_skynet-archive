@@ -22,6 +22,11 @@ namespace :ruby_skynet do
 
     # Start the server
     RubySkynet::Server.start
+    
+    at_exit do
+      RubySkynet::Server.stop
+    end
+
     RubySkynet::Server.wait_until_server_stops
   end
 

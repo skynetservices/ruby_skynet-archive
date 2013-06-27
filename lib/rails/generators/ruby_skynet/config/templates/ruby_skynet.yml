@@ -18,32 +18,19 @@
 #     by remote Skynet clients
 #     Note: Must be an IP address, not the hostname
 #
-#   Zookeeper Configuration Parameters - Recommended
-#   :zookeeper
+#   Registry settings
+#   :registry
 #     :servers [Array of String]
 #       Array of URL's of doozer servers to connect to with port numbers
 #       ['server1:2000', 'server2:2000']
-#
-#     :timeout [Float]
-#       Time in seconds to timeout when trying to connect to the server
-#
-#   Doozer Configuration Parameters - Optional - Instead of :zookeeper above
-#   :doozer
-#     :servers [Array of String]
-#       Array of URL's of doozer servers to connect to with port numbers
-#       ['server1:2000', 'server2:2000']
-#
-#       The second server will only be attempted once the first server
-#       cannot be connected to or has timed out on connect
-#       A read failure or timeout will not result in switching to the second
-#       server, only a connection failure or during an automatic reconnect
-#
-#     :read_timeout [Float]
-#       Time in seconds to timeout on read
-#       Can be overridden by supplying a timeout in the read call
 #
 #     :connect_timeout [Float]
 #       Time in seconds to timeout when trying to connect to the server
+#
+#   Additional Doozer configuration options
+#     :read_timeout [Float]
+#       Time in seconds to timeout on read
+#       Can be overridden by supplying a timeout in the read call
 #
 #     :connect_retry_count [Fixnum]
 #       Number of times to retry connecting when a connection fails
@@ -58,6 +45,10 @@
 #           Select a server in the order supplied in the array, with the first
 #           having the highest priority. The second server will only be connected
 #           to if the first server is unreachable
+#           The second server will only be attempted once the first server
+#           cannot be connected to or has timed out on connect
+#           A read failure or timeout will not result in switching to the second
+#           server, only a connection failure or during an automatic reconnect
 #         :random
 #           Randomly select a server from the list every time a connection
 #           is established, including during automatic connection recovery.
@@ -70,18 +61,14 @@ defaults: &defaults
   :services_path: app/services
   :server_port:   2000
 
-  # Use ZooKeeper for centralized Service Registry : Recommended
-  :zookeeper:
+  # Registry Settings
+  :registry:
     :servers:
     - 127.0.0.1:2181
-    :connect_timeout: 10
+    :connect_timeout: 3
 
-# Replace :zookeeper above if using doozer as the centralized Service Registry
-#  :doozer:
-#    :servers:
-#    - 127.0.0.1:8046
+# Additional Doozer configuration settings
 #    :read_timeout:           5
-#    :connect_timeout:        3
 #    :connect_retry_count:    10
 #    :connect_retry_interval: 0.5
 #    :server_selector:        :random

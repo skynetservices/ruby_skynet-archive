@@ -11,6 +11,7 @@ module RubySkynet
   autoload :Client,          'ruby_skynet/client'
   autoload :Service,         'ruby_skynet/service'
   autoload :Server,          'ruby_skynet/server'
+  autoload :Registry,        'ruby_skynet/registry'
   autoload :ServiceRegistry, 'ruby_skynet/service_registry'
 end
 

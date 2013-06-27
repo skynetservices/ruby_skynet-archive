@@ -78,22 +78,38 @@ module RubySkynet
     config_file = filename.nil? ? Rails.root.join('config', 'ruby_skynet.yml') : Pathname.new(filename)
     raise "ruby_skynet config not found. Create a config file at: config/ruby_skynet.yml" unless config_file.file?
 
-    cfg = YAML.load(ERB.new(File.new(config_file).read).result)[environment || Rails.env]
-    raise("Environment #{Rails.env} not defined in config/ruby_skynet.yml") unless cfg
+    config = YAML.load(ERB.new(File.new(config_file).read).result)[environment || Rails.env]
+    raise("Environment #{Rails.env} not defined in config/ruby_skynet.yml") unless config
 
-    RubySkynet.region           = cfg.delete(:region)           || 'Development'
-    RubySkynet.services_path    = cfg.delete(:services_path)    || 'app/services'
-    RubySkynet.server_port      = cfg.delete(:server_port)      || 2000
-    RubySkynet.local_ip_address = cfg.delete(:local_ip_address) || Common::local_ip_address
+    @@config = config.dup
+
+    RubySkynet.region           = config.delete(:region)           || 'Development'
+    RubySkynet.services_path    = config.delete(:services_path)    || 'app/services'
+    RubySkynet.server_port      = config.delete(:server_port)      || 2000
+    RubySkynet.local_ip_address = config.delete(:local_ip_address) || Common::local_ip_address
 
     # Extract just the zookeeper or doozer configuration element
     key = config[:zookeeper] ? :zookeeper : :doozer
     RubySkynet.service_registry = ServiceRegistry.new(
       :root => '/services',
-      key   => cfg.delete(key)
+      key   => config.delete(key)
     )
 
-    cfg.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
+    config.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
+  end
+
+  # Returns an instance of RubySkynet::Zookeeper::CachedRegistry or RubyDoozer::CachedRegistry
+  # based on which was loaded in RubySkynet.configure!
+  def self.new_cache_registry(root)
+    # Load config
+    service_registry
+
+    if zookeeper = @@config[:zookeeper]
+      RubySkynet::Zookeeper::CachedRegistry.new(:root => root, :zookeeper => zookeeper)
+    else
+      raise "How did we get here", @@config
+      Doozer::CachedRegistry.new(:root => root, :doozer => @@config[:doozer])
+    end
   end
 
 end

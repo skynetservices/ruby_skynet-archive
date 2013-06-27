@@ -68,15 +68,15 @@ module RubySkynet
         @root_with_trail = "#{@root}/"
         @root = '/' if @root == ''
 
-        zookeeper_config = params.delete(:zookeeper) || {}
-        if zookeeper_config.is_a?(::Zookeeper::Client)
-          @zookeeper = zookeeper_config
+        registry_config = params.delete(:registry) || {}
+        if registry_config.is_a?(::Zookeeper::Client)
+          @zookeeper = registry_config
         else
-          servers = zookeeper_config.delete(:servers) || ['127.0.0.1:2181']
-          connect_timeout = (zookeeper_config.delete(:connect_timeout) || 10).to_f
+          servers = registry_config.delete(:servers) || ['127.0.0.1:2181']
+          connect_timeout = (registry_config.delete(:connect_timeout) || 10).to_f
 
           # Generate warning log entries for any unknown configuration options
-          zookeeper_config.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: zookeeper.#{k}"}
+          registry_config.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: zookeeper.#{k}"}
 
           # Create Zookeeper connection
           #   server1:2181,server2:2181,server3:2181

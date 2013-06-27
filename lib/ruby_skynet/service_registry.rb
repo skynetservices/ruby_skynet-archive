@@ -22,23 +22,15 @@ module RubySkynet
       @cache = ThreadSafe::Hash.new
 
       # Supply block to load the current keys from the Registry
-      if params[:doozer]
-        require 'ruby_doozer'
-        @registry = Doozer::Registry.new(params) do |key, value|
-          service_info_changed(key, value)
-        end
-      else
-        require 'ruby_skynet/zookeeper'
-        @registry = RubySkynet::Zookeeper::Registry.new(params) do |key, value|
-          service_info_changed(key, value)
-        end
-        # Zookeeper Registry also supports on_create
-        @registry.on_create {|path, value| service_info_changed(path, value) }
+      @registry = Registry.new(params) do |key, value|
+        service_info_changed(key, value)
       end
-
       # Register Callbacks
       @registry.on_update {|path, value| service_info_changed(path, value) }
       @registry.on_delete {|path|        service_info_changed(path) }
+
+      # Zookeeper Registry also supports on_create
+      @registry.on_create {|path, value| service_info_changed(path, value) } if @registry.respond_to?(:on_create)
     end
 
     # Returns the Service Registry as a Hash

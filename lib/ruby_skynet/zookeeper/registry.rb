@@ -206,7 +206,7 @@ module RubySkynet
       #      Default: '*'
       #
       #    value
-      #      New value from doozer
+      #      New value from the registry
       #
       #    version
       #      The version number of this node
@@ -230,12 +230,12 @@ module RubySkynet
       #
       #  Parameters passed to the block:
       #    key
-      #      The key that was updated in doozer
+      #      The key that was updated in the registry
       #      Supplying a key of '*' means all paths
       #      Default: '*'
       #
       #    value
-      #      New value from doozer
+      #      New value from the registry
       #
       #    version
       #      The version number of this node
@@ -259,7 +259,7 @@ module RubySkynet
       #
       #  Parameters passed to the block:
       #    key
-      #      The key that was deleted from doozer
+      #      The key that was deleted from the registry
       #      Supplying a key of '*' means all paths
       #      Default: '*'
       #

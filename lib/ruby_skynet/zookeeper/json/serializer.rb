@@ -3,7 +3,7 @@ module RubySkynet
   module Zookeeper
     module Json
 
-      # Serialize to JSON for storing in Doozer
+      # Serialize to JSON for storing in Registry
       module Serializer
         def self.serialize(value)
           if value.is_a?(Hash) || value.is_a?(Array)

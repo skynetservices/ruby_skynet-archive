@@ -34,7 +34,10 @@ module RubySkynet
       #   significant traffic since it will also monitor ZooKeeper Admin changes
       #   Mandatory
       #
-      # :zookeeper [Hash|ZooKeeper]
+      # :ephemeral [Boolean]
+      #   All set operations of non-nil values will result in ephemeral nodes.
+      #
+      # :registry [Hash|ZooKeeper]
       #   ZooKeeper configuration information, or an existing
       #   ZooKeeper ( ZooKeeper client) instance
       #
@@ -86,6 +89,9 @@ module RubySkynet
         # Allow the serializer and deserializer implementations to be replaced
         @serializer   = params.delete(:serializer)   || RubySkynet::Zookeeper::Json::Serializer
         @deserializer = params.delete(:deserializer) || RubySkynet::Zookeeper::Json::Deserializer
+
+        @ephemeral = params.delete(:ephemeral)
+        @ephemeral = false if @ephemeral.nil?
 
         # Generate warning log entries for any unknown configuration options
         params.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: #{k}"}
@@ -314,7 +320,7 @@ module RubySkynet
           @zookeeper.create(:path => path)
         end
         if value
-          @zookeeper.create(:path => full_path, :data => value)
+          @zookeeper.create(:path => full_path, :data => value, :ephemeral => @ephemeral)
         else
           @zookeeper.create(:path => full_path)
         end

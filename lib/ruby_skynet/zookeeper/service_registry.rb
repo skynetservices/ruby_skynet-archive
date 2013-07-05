@@ -24,7 +24,7 @@ module RubySkynet
         @notifications_cache = ThreadSafe::Hash.new
 
         # Supply block to load the current keys from the Registry
-        @registry = Zookeeper::Registry.new(:root => '/instances') do |key, value|
+        @registry = Zookeeper::Registry.new(:root => '/instances', :ephemeral => true) do |key, value|
           service_info_created(key, value)
         end
         # Register Callbacks

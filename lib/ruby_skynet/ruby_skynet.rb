@@ -54,6 +54,14 @@ module RubySkynet
     ServiceRegistry.new
   end
 
+  # Returns the current Registry Config information
+  #
+  # By default it connects to a local ZooKeeper instance
+  # Use .configure! to supply a configuration file with any other settings
+  def self.registry_config
+    @@config.dup if @@config && defined?(@@config)
+  end
+
   # Set the services registry
   #   It is recommended to call RubySkynet.configure! rather than calling this
   #   method directly
@@ -89,27 +97,14 @@ module RubySkynet
     RubySkynet.local_ip_address = config.delete(:local_ip_address) || Common::local_ip_address
 
     # Extract just the zookeeper or doozer configuration element
-    key = config[:zookeeper] ? :zookeeper : :doozer
     RubySkynet.service_registry = ServiceRegistry.new(
-      :root => '/services',
-      key   => config.delete(key)
+      :registry => config[:registry]
     )
 
     config.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
   end
 
-  # Returns an instance of RubySkynet::Zookeeper::CachedRegistry or RubyDoozer::CachedRegistry
-  # based on which was loaded in RubySkynet.configure!
-  def self.new_cache_registry(root)
-    # Load config
-    service_registry
-
-    if zookeeper = @@config[:zookeeper]
-      RubySkynet::Zookeeper::CachedRegistry.new(:root => root, :zookeeper => zookeeper)
-    else
-      raise "How did we get here", @@config
-      Doozer::CachedRegistry.new(:root => root, :doozer => @@config[:doozer])
-    end
-  end
+  # Initialize internal class variable
+  @@config = nil
 
 end

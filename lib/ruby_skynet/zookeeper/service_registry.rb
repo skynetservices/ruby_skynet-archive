@@ -16,7 +16,7 @@ module RubySkynet
 
       # Create a service registry
       # See: RubyDoozer::Registry for the parameters
-      def initialize
+      def initialize(params = {})
         # Registry has the following format
         #  Key: [String] 'name/version/region'
         #  Value: [Array<String>] 'host:port', 'host:port'
@@ -24,7 +24,9 @@ module RubySkynet
         @notifications_cache = ThreadSafe::Hash.new
 
         # Supply block to load the current keys from the Registry
-        @registry = Zookeeper::Registry.new(:root => '/instances', :ephemeral => true) do |key, value|
+        params[:root] = '/instances'
+        params[:ephemeral] = true
+        @registry = Zookeeper::Registry.new(params) do |key, value|
           service_info_created(key, value)
         end
         # Register Callbacks

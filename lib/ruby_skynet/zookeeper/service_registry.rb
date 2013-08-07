@@ -117,26 +117,23 @@ module RubySkynet
         end
       end
 
-      # Service information changed, so update internal registry
+      # Service information created
       def service_info_created(path, value=nil)
         logger.info("service_info_created: #{path}", value)
         # path: "uuid/key"
         uuid, key = path.split('/')
 
-        # Big Assumption: 'registered' event will be received last as true
-        if (key == 'registered') && (value == true)
-          server = @notifications_cache[uuid]
-          if server && server['addr'] && server['name'] && server['version'] && server['region']
-            hostname, port = server['addr'].split(':')
-            add_server(File.join(server['name'], server['version'].to_s, server['region']), hostname, port)
-          else
-            logger.warn "Registered notification received for #{uuid} but is missing critical information. Received:", server
-          end
-        else
-          (@notifications_cache[uuid] ||= ThreadSafe::Hash.new)[key] = value
+        server = (@notifications_cache[uuid] ||= ThreadSafe::Hash.new)
+        server[key] = value
+
+        # Check if service is 'registered' and has all required attributes
+        if (server['registered'] == true) && server['addr'] && server['name'] && server['version'] && server['region']
+          hostname, port = server['addr'].split(':')
+          add_server(File.join(server['name'], server['version'].to_s, server['region']), hostname, port)
         end
       end
 
+      # Service information changed
       def service_info_updated(path, value=nil)
         logger.info("service_info_updated: #{path}", value)
         # path: "uuid/key"

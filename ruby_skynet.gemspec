@@ -4,7 +4,7 @@ $:.unshift lib unless $:.include?(lib)
 require 'date'
 require 'ruby_skynet/version'
 
-Gem::Specification.new do |s|
+Gem::Specification.new do |spec|
   spec.name        = 'ruby_skynet'
   spec.version     = RubySkynet::VERSION
   spec.platform    = Gem::Platform::RUBY
@@ -14,7 +14,7 @@ Gem::Specification.new do |s|
   spec.date        = Date.today.to_s
   spec.summary     = "Skynet Ruby Client"
   spec.description = "Ruby Client for invoking Skynet services"
-  spec.files       = FileList["./**/*"].exclude(/\.gem$/, /\.log$/,/nbproject/).map{|f| f.sub(/^\.\//, '')}
+  spec.files       = Dir.glob("lib/**/*") + %w(LICENSE.txt README.md)
   spec.license     = "Apache License V2.0"
   spec.has_rdoc    = true
   spec.add_dependency 'semantic_logger', '>= 2.1.0'

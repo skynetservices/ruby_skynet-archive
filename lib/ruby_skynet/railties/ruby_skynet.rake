@@ -6,28 +6,25 @@ namespace :ruby_skynet do
     # so skip it here under Rails
     unless defined?(Rails)
       # Environment to use in config file
+      # Defaults to Rails.env
       environment = ENV['SKYNET_ENV']
 
       # Environment to use in config file
+      # Defaults to config/ruby_skynet.yml
       cfg_file = ENV['SKYNET_CONFIG']
 
       # Load the configuration file
       RubySkynet.configure!(cfg_file, environment)
     end
 
-    # Connect to services registry
-    RubySkynet.services
+    ruby_skynet_server = RubySkynet::Server.new
+    ruby_skynet_server.register_services_in_path(TestService)
 
-    RubySkynet::Server.load_services
-
-    # Start the server
-    RubySkynet::Server.start
-    
     at_exit do
-      RubySkynet::Server.stop
+      ruby_skynet_server.close
     end
 
-    RubySkynet::Server.wait_until_server_stops
+    ruby_skynet_server.wait_until_server_stops
   end
 
 end

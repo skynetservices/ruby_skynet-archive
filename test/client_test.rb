@@ -59,7 +59,8 @@ class ClientTest < Test::Unit::TestCase
       setup do
         @region = 'ClientTest'
         RubySkynet.region = @region
-        RubySkynet::Server.start
+        @server = RubySkynet::Server.new
+        @server.register_service(ClientTestService)
         # Give Service Registry time to push out the presence of the service above
         sleep 0.1
 
@@ -70,7 +71,7 @@ class ClientTest < Test::Unit::TestCase
       end
 
       teardown do
-        RubySkynet::Server.stop
+        @server.close if @server
       end
 
       context "with client connection" do
@@ -100,7 +101,7 @@ class ClientTest < Test::Unit::TestCase
         end
 
         should "successfully send and receive data" do
-          reply = @client.test1('some' => 'parameters')
+          assert reply = @client.test1('some' => 'parameters'), "Must return a Hash"
           assert_equal 'test1', reply['result']
         end
 

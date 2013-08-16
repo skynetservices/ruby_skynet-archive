@@ -34,17 +34,18 @@ class ServiceTest < Test::Unit::TestCase
         @service_name = 'TestService'
         @version = 1
         RubySkynet.region = @region
-        RubySkynet::Server.start
+        @server = RubySkynet::Server.new
+        @server.register_service(TestService)
         sleep 0.2
       end
 
       teardown do
-        RubySkynet::Server.stop
+        @server.close if @server
         SemanticLogger::Logger.flush
       end
 
       should "be running" do
-        assert_equal true, RubySkynet::Server.running?
+        assert_equal true, @server.running?
       end
 
       context "using a client" do

@@ -8,8 +8,9 @@ require 'bson'
 #
 module RubySkynet
   class Client
-    include Base
+    include Common
 
+    # Allows this instance of the client to use different versions or regions.
     attr_reader :skynet_name, :skynet_version, :skynet_region
 
     # Version of the Skynet service to use
@@ -110,7 +111,7 @@ module RubySkynet
       #
       # Define the method if the call was successful and no other thread has
       # already created the method
-      if result[:exception].nil? && !self.class.method_defined?(method)
+      if !result.nil? && result[:exception].nil? && !self.class.method_defined?(method)
         self.class.send(:define_method, method) {|*args| call(method, *args)}
       end
       result

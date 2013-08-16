@@ -2,6 +2,7 @@ require 'sync_attr'
 
 module RubySkynet
   include SyncAttr
+  @@config = nil
 
   # Returns the default region for all Ruby Skynet Clients and Services
   def self.region
@@ -69,11 +70,6 @@ module RubySkynet
     @@service_registry = service_registry
   end
 
-  # DEPRECATED - Use RubySkynet.service_registry
-  def self.services
-    @@service_registry
-  end
-
   # Load the Configuration information from a YAML file
   #  filename:
   #    Name of file to read.
@@ -103,8 +99,5 @@ module RubySkynet
 
     config.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
   end
-
-  # Initialize internal class variable
-  @@config = nil
 
 end

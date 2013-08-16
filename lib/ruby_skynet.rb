@@ -2,17 +2,42 @@ require 'semantic_logger'
 require 'ruby_skynet/exceptions'
 require 'ruby_skynet/version'
 require 'ruby_skynet/ruby_skynet'
-require 'ruby_skynet/zookeeper'
 
 module RubySkynet
-  autoload :Base,            'ruby_skynet/base'
   autoload :Common,          'ruby_skynet/common'
   autoload :Connection,      'ruby_skynet/connection'
   autoload :Client,          'ruby_skynet/client'
   autoload :Service,         'ruby_skynet/service'
   autoload :Server,          'ruby_skynet/server'
-  autoload :Registry,        'ruby_skynet/registry'
-  autoload :ServiceRegistry, 'ruby_skynet/service_registry'
+  autoload :Zookeeper,       'ruby_skynet/zookeeper'
+end
+
+# Autodetect if Zookeeper gem is loaded, otherwise look for Doozer
+module RubySkynet
+  begin
+    require 'zookeeper'
+    require 'zookeeper/client'
+    require 'ruby_skynet/zookeeper/service_registry'
+    # Monkey-patch so that the Zookeeper JRuby code can handle nil values in Zookeeper
+    require 'ruby_skynet/zookeeper/extensions/java_base' if defined?(::JRUBY_VERSION)
+
+    # Shortcuts to loaded Registry classes
+    ServiceRegistry = RubySkynet::Zookeeper::ServiceRegistry
+    CachedRegistry  = RubySkynet::Zookeeper::CachedRegistry
+    Registry        = RubySkynet::Zookeeper::Registry
+  rescue LoadError
+    begin
+      require 'ruby_doozer'
+      require 'ruby_skynet/doozer/service_registry'
+    rescue LoadError
+      raise LoadError, "Load either the 'zookeeper' or 'ruby_doozer' gem prior to loading RubySkynet. 'zookeeper' is preferred"
+    end
+
+    # Shortcuts to loaded Registry classes
+    ServiceRegistry = RubySkynet::Doozer::ServiceRegistry
+    CachedRegistry  = Doozer::CachedRegistry
+    Registry        = Doozer::Registry
+  end
 end
 
 if defined?(Rails)

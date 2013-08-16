@@ -15,8 +15,7 @@ gem "zookeeper"
 gem "thread_safe"
 # Connection pool
 gem "gene_pool"
-# For looking up Service entries in Service Registry
+# For looking up Service entries in Service Registry. Only Required when using Doozer
 gem "multi_json"
 # Wire format when communicating with services
-gem "bson"
-gem "bson_ext", :platform => :ruby
+gem 'bson', '>= 2.0.0.rc1'

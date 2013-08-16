@@ -44,7 +44,6 @@ module RubySkynet
       # Returns the UUID for the service that was created
       def register_service(name, version, region, hostname, port)
         uuid = "#{hostname}:#{port}-#{$$}-#{name}-#{version}"
-        # TODO Make sets ephemeral
         @registry[File.join(uuid,'addr')]       = "#{hostname}:#{port}"
         @registry[File.join(uuid,'name')]       = name
         @registry[File.join(uuid,'version')]    = version
@@ -62,6 +61,7 @@ module RubySkynet
         @registry.delete(File.join(uuid,'region'), false)
         @registry.delete(File.join(uuid,'registered'), false)
         @registry.delete(uuid, false)
+	      uuid
       end
 
       # Return a server that implements the specified service
@@ -105,21 +105,21 @@ module RubySkynet
       protected
 
       def service_info_deleted(path)
-        logger.info("service_info_deleted: #{path}")
+        logger.trace("service_info_deleted: #{path}")
         # path: "uuid/key"
         uuid, key = path.split('/')
-        if (key == 'registered')
-          if server = @notifications_cache.delete(uuid)
-            hostname, port = server['addr'].split(':')
-            # Service has stopped and needs to be removed
-            remove_server(File.join(server['name'], server['version'].to_s, server['region']), hostname, port, true)
-          end
+        # If any child of the node is deleted, deregister the service,
+        # not just for (key == 'registered')
+        if server = @notifications_cache.delete(uuid)
+          hostname, port = server['addr'].split(':')
+          # Service has stopped and needs to be removed
+          remove_server(File.join(server['name'], server['version'].to_s, server['region']), hostname, port, true)
         end
       end
 
       # Service information created
       def service_info_created(path, value=nil)
-        logger.info("service_info_created: #{path}", value)
+        logger.trace("service_info_created: #{path}", value)
         # path: "uuid/key"
         uuid, key = path.split('/')
 
@@ -135,7 +135,7 @@ module RubySkynet
 
       # Service information changed
       def service_info_updated(path, value=nil)
-        logger.info("service_info_updated: #{path}", value)
+        logger.trace("service_info_updated: #{path}", value)
         # path: "uuid/key"
         uuid, key = path.split('/')
 

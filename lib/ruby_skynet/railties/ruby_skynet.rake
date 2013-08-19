@@ -17,14 +17,14 @@ namespace :ruby_skynet do
       RubySkynet.configure!(cfg_file, environment)
     end
 
-    ruby_skynet_server = RubySkynet::Server.new
-    ruby_skynet_server.register_services_in_path(TestService)
-
-    at_exit do
-      ruby_skynet_server.close
+    server = nil
+    begin
+      server = RubySkynet::Server.new
+      server.register_services_in_path
+      server.wait_until_server_stops
+    ensure
+      server.close if server
     end
-
-    ruby_skynet_server.wait_until_server_stops
   end
 
 end

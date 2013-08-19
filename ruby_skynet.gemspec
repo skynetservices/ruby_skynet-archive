@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
   spec.date        = Date.today.to_s
   spec.summary     = "Skynet Ruby Client"
   spec.description = "Ruby Client for invoking Skynet services"
-  spec.files       = Dir.glob("lib/**/*") + %w(LICENSE.txt README.md)
+  spec.files       = Dir.glob("lib/**/*") + Dir.glob("examples/**/*.rb") +  %w(LICENSE.txt README.md)
   spec.license     = "Apache License V2.0"
   spec.has_rdoc    = true
   spec.add_dependency 'semantic_logger', '>= 2.1.0'

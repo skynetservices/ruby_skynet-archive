@@ -94,10 +94,10 @@ module RubySkynet
 
     # Extract just the zookeeper or doozer configuration element
     RubySkynet.service_registry = ServiceRegistry.new(
-      :registry => config[:registry]
+      :registry => config.delete(:registry)
     )
 
-    config.each_pair {|k,v| RubySkynet::Server.logger.warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
+    config.each_pair {|k,v| warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
   end
 
 end

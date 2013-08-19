@@ -37,6 +37,10 @@ module RubySkynet
       # :ephemeral [Boolean]
       #   All set operations of non-nil values will result in ephemeral nodes.
       #
+      # :on_connect [Proc]
+      #   Block to call after the connection to Zookeeper has been established
+      #   and every time the connection is re-established
+      #
       # :registry [Hash|ZooKeeper]
       #   ZooKeeper configuration information, or an existing
       #   ZooKeeper ( ZooKeeper client) instance
@@ -86,6 +90,8 @@ module RubySkynet
 
         @ephemeral = params.delete(:ephemeral)
         @ephemeral = false if @ephemeral.nil?
+
+        @on_connect = params.delete(:on_connect)
 
         # Generate warning log entries for any unknown configuration options
         params.each_pair {|k,v| logger.warn "Ignoring unknown configuration option: #{k}"}
@@ -375,7 +381,7 @@ module RubySkynet
               logger.debug "Node '#{path}' Created - No op", event_hash
 
             when ::Zookeeper::ZOO_SESSION_EVENT
-              logger.debug "Session Event: #{@zookeeper.state_by_value(event_hash[:state])}", event_hash
+              logger.debug "Session Event: #{@zookeeper.state_by_value(event_hash[:state]) if @zookeeper}", event_hash
 
               # Replace zookeeper connection since it is stale. Only react to global request
               # since this event will be received for every node being watched.
@@ -517,7 +523,7 @@ module RubySkynet
         end
       end
 
-      # Create zookeeper conenction and start watching the registry for any changes
+      # Create ZooKeeper connection and start watching the registry for any changes
       def init
         logger.benchmark_info "Connected to Zookeeper" do
           @zookeeper.close if @zookeeper
@@ -529,6 +535,9 @@ module RubySkynet
 
           # Start watching registry for any changes
           get_recursive(@root, watch=true, create_path=true, &@block)
+
+          # Call on_connect callback if supplied
+          @on_connect.call(self) if @on_connect
         end
       end
 

@@ -15,8 +15,8 @@ module RubySkynet #:nodoc:
       load "ruby_skynet/railties/ruby_skynet.rake"
     end
 
-    # Load RubySkynet Configuration
-    config.before_configuration do
+    # Load RubySkynet Configuration once rails has started
+    initializer 'ruby_skynet.initialize' do
       config_file = Rails.root.join("config", "ruby_skynet.yml")
       if config_file.file?
         ::RubySkynet.configure!(config_file, Rails.env)

@@ -23,9 +23,17 @@ module RubySkynet
         @cache = ThreadSafe::Hash.new
         @notifications_cache = ThreadSafe::Hash.new
 
+        # Keep a list of registered services so that they can be re-registered
+        # if the connection is lost
+        @services = ThreadSafe::Hash.new
+
         # Supply block to load the current keys from the Registry
         params[:root] = '/instances'
         params[:ephemeral] = true
+        params[:on_connect] = Proc.new do |registry|
+          # Re-Register services every time the connection to ZooKeeper is lost
+          @services.values.each {|v| register_service(*v)}
+        end
         @registry = Zookeeper::Registry.new(params) do |key, value|
           service_info_created(key, value)
         end
@@ -49,7 +57,9 @@ module RubySkynet
         @registry[File.join(uuid,'version')]    = version
         @registry[File.join(uuid,'region')]     = region
         @registry[File.join(uuid,'registered')] = true
-	      uuid
+        # Add to local services list
+        @services[uuid] = [name, version, region, hostname, port]
+        uuid
       end
 
       # Deregister the supplied service from the Registry
@@ -61,6 +71,8 @@ module RubySkynet
         @registry.delete(File.join(uuid,'region'), false)
         @registry.delete(File.join(uuid,'registered'), false)
         @registry.delete(uuid, false)
+        # Remove from local services list
+        @services.delete(uuid)
 	      uuid
       end
 

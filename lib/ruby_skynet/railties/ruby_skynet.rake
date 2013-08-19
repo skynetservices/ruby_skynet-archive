@@ -20,14 +20,14 @@ namespace :ruby_skynet do
 
     RubySkynet::Server.load_services
 
-    # Start the server
-    RubySkynet::Server.start
-    
-    at_exit do
+    begin
+      # Start the server
+      RubySkynet::Server.start
+      RubySkynet::Server.wait_until_server_stops
+    ensure
       RubySkynet::Server.stop
     end
 
-    RubySkynet::Server.wait_until_server_stops
   end
 
 end

@@ -388,7 +388,9 @@ module RubySkynet
               #   Do not close the current connection since this background watcher thread is running
               #   as part of the current zookeeper connection
               #     event_hash => {:req_id=>-1, :type=>-1, :state=>-112, :path=>"", :context=>nil}
-              Thread.new { self.init } if (event_hash[:req_id] == -1) && (event_hash[:state] == ::Zookeeper::ZOO_EXPIRED_SESSION_STATE)
+              if @zookeeper && !@zookeeper.closed? && (event_hash[:req_id] == -1) && (event_hash[:state] == ::Zookeeper::ZOO_EXPIRED_SESSION_STATE)
+                Thread.new { self.init }
+              end
 
             when ::Zookeeper::ZOO_NOTWATCHING_EVENT
               logger.debug "Ignoring ZOO_NOTWATCHING_EVENT", event_hash
@@ -529,9 +531,6 @@ module RubySkynet
           @zookeeper.close if @zookeeper
           # Create Zookeeper connection
           @zookeeper = ::Zookeeper.new(@servers, @connect_timeout, watcher)
-          at_exit do
-            @zookeeper.close if @zookeeper
-          end
 
           # Start watching registry for any changes
           get_recursive(@root, watch=true, create_path=true, &@block)

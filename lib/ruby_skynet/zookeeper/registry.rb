@@ -389,7 +389,14 @@ module RubySkynet
               #   as part of the current zookeeper connection
               #     event_hash => {:req_id=>-1, :type=>-1, :state=>-112, :path=>"", :context=>nil}
               if @zookeeper && !@zookeeper.closed? && (event_hash[:req_id] == -1) && (event_hash[:state] == ::Zookeeper::ZOO_EXPIRED_SESSION_STATE)
-                Thread.new { self.init }
+                Thread.new do
+                  begin
+                    self.init
+                  rescue Zookeeper::Exceptions::SessionExpired, Zookeeper::Exceptions::ConnectionLoss
+                    # These can occur during a shutdown scenario, hopefully not during
+                    # an actual network or connection loss to the Zookeeper Server
+                  end
+                end
               end
 
             when ::Zookeeper::ZOO_NOTWATCHING_EVENT

@@ -392,7 +392,8 @@ module RubySkynet
                 Thread.new do
                   begin
                     self.init
-                  rescue ::Zookeeper::Exceptions::SessionExpired, ::Zookeeper::Exceptions::ConnectionLoss
+                  rescue ::Zookeeper::Exceptions::ZookeeperException => exc
+                    logger.warn "Failed to reconnect to Zookeeper. Assuming shutdown in progress", exc
                     # These can occur during a shutdown scenario, hopefully not during
                     # an actual network or connection loss to the Zookeeper Server
                   end

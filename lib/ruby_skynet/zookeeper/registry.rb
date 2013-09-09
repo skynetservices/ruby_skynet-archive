@@ -392,7 +392,7 @@ module RubySkynet
                 Thread.new do
                   begin
                     self.init
-                  rescue Zookeeper::Exceptions::SessionExpired, Zookeeper::Exceptions::ConnectionLoss
+                  rescue ::Zookeeper::Exceptions::SessionExpired, ::Zookeeper::Exceptions::ConnectionLoss
                     # These can occur during a shutdown scenario, hopefully not during
                     # an actual network or connection loss to the Zookeeper Server
                   end

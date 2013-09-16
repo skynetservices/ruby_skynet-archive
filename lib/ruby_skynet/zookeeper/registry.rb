@@ -41,10 +41,7 @@ module RubySkynet
       #   Block to call after the connection to Zookeeper has been established
       #   and every time the connection is re-established
       #
-      # :registry [Hash|ZooKeeper]
-      #   ZooKeeper configuration information, or an existing
-      #   ZooKeeper ( ZooKeeper client) instance
-      #
+      # :registry [Hash]
       #   :servers [Array of String]
       #     Array of URL's of ZooKeeper servers to connect to with port numbers
       #     ['server1:2181', 'server2:2181']
@@ -75,7 +72,7 @@ module RubySkynet
         @root_with_trail = "#{@root}/"
         @root = '/' if @root == ''
 
-        registry_config = params.delete(:registry) || {}
+        registry_config = (params.delete(:registry) || {}).dup
 
         #   server1:2181,server2:2181,server3:2181
         @servers = (registry_config.delete(:servers) || ['127.0.0.1:2181']).join(',')

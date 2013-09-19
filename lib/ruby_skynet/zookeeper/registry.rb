@@ -330,16 +330,20 @@ module RubySkynet
             logger.trace "Event Received", event_hash
             case event_hash[:type]
             when ::Zookeeper::ZOO_CHANGED_EVENT
-              logger.debug "Node '#{path}' Changed", event_hash
+              begin
+                logger.debug "Node '#{path}' Changed", event_hash
 
-              # Fetch current value and re-subscribe
-              result = @zookeeper.get(:path => path, :watcher => @watch_proc)
-              check_rc(result)
-              value = @deserializer.deserialize(result[:data])
-              stat = result[:stat]
+                # Fetch current value and re-subscribe
+                result = @zookeeper.get(:path => path, :watcher => @watch_proc)
+                check_rc(result)
+                value = @deserializer.deserialize(result[:data])
+                stat = result[:stat]
 
-              # Invoke on_update callbacks
-              node_updated(relative_key(path), value, stat.version)
+                # Invoke on_update callbacks
+                node_updated(relative_key(path), value, stat.version)
+              rescue ::Zookeeper::Exceptions::NoNode
+                # Ignore errors where the value changes and then deleted
+              end
 
             when ::Zookeeper::ZOO_DELETED_EVENT
               # A node has been deleted

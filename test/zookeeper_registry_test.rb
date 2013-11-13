@@ -69,11 +69,20 @@ class ZookeeperRegistryTest < Test::Unit::TestCase
 
     context "with registry" do
       setup do
-        @registry = RubySkynet::Zookeeper::Registry.new(:root => "/registrytest")
+        params = {
+          :root => "/registrytest",
+          :registry => {
+            :connect_timeout => 5,
+          }
+        }
+        @registry = RubySkynet::Zookeeper::Registry.new(params)
         @registry.each_pair {|k,v, ver, num_children| @registry.delete(k) if num_children == 0}
         @test_data.each_pair {|k,v| @registry[k] = v}
         @path = 'a/b/c/d/e/f/g/h'
         @registry[@path] = 'hello'
+        # Ensure hash is not modified
+        assert_equal "/registrytest", params[:root]
+        assert_equal 5, params[:registry][:connect_timeout]
       end
 
       def teardown

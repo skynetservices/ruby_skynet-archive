@@ -122,7 +122,9 @@ module RubySkynet
         uuid, key = path.split('/')
         # If any child of the node is deleted, deregister the service,
         # not just for (key == 'registered')
-        if server = @notifications_cache.delete(uuid)
+        server = @notifications_cache.delete(uuid)
+        # Handle partially registered services
+        if server && server['addr'] && server['name'] && server['version'] && server['region']
           hostname, port = server['addr'].split(':')
           # Service has stopped and needs to be removed
           remove_server(File.join(server['name'], server['version'].to_s, server['region']), hostname, port, true)

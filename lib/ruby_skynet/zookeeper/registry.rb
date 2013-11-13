@@ -41,10 +41,7 @@ module RubySkynet
       #   Block to call after the connection to Zookeeper has been established
       #   and every time the connection is re-established
       #
-      # :registry [Hash|ZooKeeper]
-      #   ZooKeeper configuration information, or an existing
-      #   ZooKeeper ( ZooKeeper client) instance
-      #
+      # :registry [Hash]
       #   :servers [Array of String]
       #     Array of URL's of ZooKeeper servers to connect to with port numbers
       #     ['server1:2181', 'server2:2181']
@@ -75,7 +72,7 @@ module RubySkynet
         @root_with_trail = "#{@root}/"
         @root = '/' if @root == ''
 
-        registry_config = params.delete(:registry) || {}
+        registry_config = (params.delete(:registry) || {}).dup
 
         #   server1:2181,server2:2181,server3:2181
         @servers = (registry_config.delete(:servers) || ['127.0.0.1:2181']).join(',')
@@ -333,16 +330,20 @@ module RubySkynet
             logger.trace "Event Received", event_hash
             case event_hash[:type]
             when ::Zookeeper::ZOO_CHANGED_EVENT
-              logger.debug "Node '#{path}' Changed", event_hash
+              begin
+                logger.debug "Node '#{path}' Changed", event_hash
 
-              # Fetch current value and re-subscribe
-              result = @zookeeper.get(:path => path, :watcher => @watch_proc)
-              check_rc(result)
-              value = @deserializer.deserialize(result[:data])
-              stat = result[:stat]
+                # Fetch current value and re-subscribe
+                result = @zookeeper.get(:path => path, :watcher => @watch_proc)
+                check_rc(result)
+                value = @deserializer.deserialize(result[:data])
+                stat = result[:stat]
 
-              # Invoke on_update callbacks
-              node_updated(relative_key(path), value, stat.version)
+                # Invoke on_update callbacks
+                node_updated(relative_key(path), value, stat.version)
+              rescue ::Zookeeper::Exceptions::NoNode
+                # Ignore errors where the value changes and then deleted
+              end
 
             when ::Zookeeper::ZOO_DELETED_EVENT
               # A node has been deleted
@@ -388,7 +389,17 @@ module RubySkynet
               #   Do not close the current connection since this background watcher thread is running
               #   as part of the current zookeeper connection
               #     event_hash => {:req_id=>-1, :type=>-1, :state=>-112, :path=>"", :context=>nil}
-              Thread.new { self.init } if (event_hash[:req_id] == -1) && (event_hash[:state] == ::Zookeeper::ZOO_EXPIRED_SESSION_STATE)
+              if @zookeeper && !@zookeeper.closed? && (event_hash[:req_id] == -1) && (event_hash[:state] == ::Zookeeper::ZOO_EXPIRED_SESSION_STATE)
+                Thread.new do
+                  begin
+                    self.init
+                  rescue ::Zookeeper::Exceptions::ZookeeperException => exc
+                    logger.warn "Failed to reconnect to Zookeeper. Assuming shutdown in progress", exc
+                    # These can occur during a shutdown scenario, hopefully not during
+                    # an actual network or connection loss to the Zookeeper Server
+                  end
+                end
+              end
 
             when ::Zookeeper::ZOO_NOTWATCHING_EVENT
               logger.debug "Ignoring ZOO_NOTWATCHING_EVENT", event_hash
@@ -529,9 +540,6 @@ module RubySkynet
           @zookeeper.close if @zookeeper
           # Create Zookeeper connection
           @zookeeper = ::Zookeeper.new(@servers, @connect_timeout, watcher)
-          at_exit do
-            @zookeeper.close if @zookeeper
-          end
 
           # Start watching registry for any changes
           get_recursive(@root, watch=true, create_path=true, &@block)

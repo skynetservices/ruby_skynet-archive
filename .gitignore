@@ -1,6 +1,5 @@
 .DS_Store
 *.gem
 .idea/*
-Gemfile.lock
 /nbproject/private/
 *.log

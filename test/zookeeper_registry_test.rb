@@ -12,7 +12,7 @@ require 'date'
 
 # Register an appender if one is not already registered
 SemanticLogger.default_level = :trace
-SemanticLogger.add_appender('test.log') if SemanticLogger.appenders.size == 0
+SemanticLogger.add_appender('test.log', &SemanticLogger::Appender::Base.colorized_formatter) if SemanticLogger.appenders.size == 0
 
 # Unit Test for RubySkynet::Zookeeper::Registry
 class ZookeeperRegistryTest < Test::Unit::TestCase
@@ -153,7 +153,7 @@ class ZookeeperRegistryTest < Test::Unit::TestCase
             sleep 0.1
             # Allow Zookeeper to send back the change
             @registry.delete('bar')
-            sleep 0.3
+            sleep 0.5
             assert_equal 'bar', deleted_path
           end
         end

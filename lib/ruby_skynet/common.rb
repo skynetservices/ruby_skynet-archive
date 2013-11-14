@@ -13,7 +13,8 @@ module RubySkynet
     #         connection failure occurs
     def self.read_bson_document(socket)
       # Read 4 byte size of following BSON document
-      if bytes = socket.read(4).force_encoding(BINARY_ENCODING)
+      if bytes = socket.read(4)
+        bytes.force_encoding(BINARY_ENCODING)
         # Read BSON document
         sz = bytes.unpack("V")[0]
         raise "Invalid Data received from server:#{bytes.inspect}" unless sz

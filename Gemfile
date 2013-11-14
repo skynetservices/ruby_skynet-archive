@@ -18,4 +18,4 @@ gem "gene_pool"
 # For looking up Service entries in Service Registry. Only Required when using Doozer
 gem "multi_json"
 # Wire format when communicating with services
-gem 'bson', '>= 2.0.0.rc1'
+gem 'bson', '>= 2.0.0.rc3'

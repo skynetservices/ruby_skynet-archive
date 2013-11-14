@@ -21,6 +21,6 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'resilient_socket', '>= 0.5.0'
   spec.add_dependency 'gene_pool', '>= 1.3.0'
   spec.add_dependency 'sync_attr', '>= 1.0.0'
-  spec.add_dependency 'bson', '~> 2.0.0.rc1'
+  spec.add_dependency 'bson', '~> 2.0.0.rc3'
   spec.add_dependency 'thread_safe'
 end

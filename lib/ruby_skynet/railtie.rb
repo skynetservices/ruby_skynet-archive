@@ -17,12 +17,14 @@ module RubySkynet #:nodoc:
 
     # Load RubySkynet Configuration once rails has started
     initializer 'ruby_skynet.initialize' do
-      config_file = Rails.root.join("config", "ruby_skynet.yml")
-      if config_file.file?
-        ::RubySkynet.configure!(config_file, Rails.env)
-      else
-        puts "\nRuby Skynet config not found."
-        puts "To generate one for the first time: rails generate ruby_skynet:config\n\n"
+      unless ::RubySkynet.configured?
+        config_file = Rails.root.join("config", "ruby_skynet.yml")
+        if config_file.file?
+          ::RubySkynet.configure!(config_file, Rails.env)
+        else
+          puts "\nRuby Skynet config not found."
+          puts "To generate one for the first time: rails generate ruby_skynet:config\n\n"
+        end
       end
     end
 

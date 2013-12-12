@@ -37,7 +37,7 @@ class EchoService
 end
 
 # Start the server
-RubySkynet::Server.start
+server = RubySkynet::Server.new
 ```
 
 Client to call the above Service

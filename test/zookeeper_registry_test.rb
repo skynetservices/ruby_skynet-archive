@@ -153,7 +153,7 @@ class ZookeeperRegistryTest < Test::Unit::TestCase
             sleep 0.1
             # Allow Zookeeper to send back the change
             @registry.delete('bar')
-            sleep 0.5
+            sleep 1.0
             assert_equal 'bar', deleted_path
           end
         end

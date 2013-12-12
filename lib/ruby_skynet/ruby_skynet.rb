@@ -60,7 +60,7 @@ module RubySkynet
   # By default it connects to a local ZooKeeper instance
   # Use .configure! to supply a configuration file with any other settings
   def self.registry_config
-    @@config.dup if @@config && defined?(@@config)
+    @@config.dup if @@config
   end
 
   # Set the services registry
@@ -92,7 +92,7 @@ module RubySkynet
     RubySkynet.server_port      = config.delete(:server_port)      || 2000
     RubySkynet.local_ip_address = config.delete(:local_ip_address) || Common::local_ip_address
 
-    # Extract just the zookeeper or doozer configuration element
+    # Extract the registry configuration element
     RubySkynet.service_registry = ServiceRegistry.new(
       :registry => config.delete(:registry)
     )
@@ -100,4 +100,8 @@ module RubySkynet
     config.each_pair {|k,v| warn "Ignoring unknown RubySkynet config option #{k} => #{v}"}
   end
 
+  # Returns [Boolean] whether the RubySkynet.configure! method has already been called
+  def self.configured?
+    !@@config.nil?
+  end
 end

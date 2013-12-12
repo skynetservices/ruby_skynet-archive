@@ -1,6 +1,6 @@
 namespace :ruby_skynet do
 
-  desc "Start the Ruby Skynet Server.\n Rails Example: rake ruby_skynet:server\n Without Rails: SKYNET_ENV=production SKYNET_CONFIG=config/ruby_skynet rake ruby_skynet:server"
+  desc "Start the Ruby Skynet Server.\n Rails Example: rake ruby_skynet:server\n Without Rails: SKYNET_ENV=production SKYNET_CONFIG=config/ruby_skynet.yml rake ruby_skynet:server"
   task :server => :environment do
     # Configuration is automatically loaded when running under Rails
     # so skip it here under Rails

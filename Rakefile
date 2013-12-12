@@ -28,7 +28,6 @@ task :gem  do |t|
     spec.add_dependency 'resilient_socket', '>= 0.5.0'
     spec.add_dependency 'bson', '>= 1.5.2'
     spec.add_dependency 'gene_pool', '>= 1.3.0'
-    spec.add_dependency 'zookeeper', '>= 1.4.4'
     spec.add_dependency 'sync_attr', '>= 1.0.0'
   end
   Gem::Package.build gemspec

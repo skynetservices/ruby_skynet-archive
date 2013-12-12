@@ -10,15 +10,15 @@ require 'thread_safe'
 # Format of the YAML file
 #   key: [String] "<name>/<version>/<region>"
 #   value: [Array<String>] 'host:port', 'host:port'
-
 #
 module RubySkynet
   class StaticServiceRegistry
     include SemanticLogger::Loggable
 
     # Create a service registry
-    def initialize(services = {})
-      @services = services
+    def initialize(params = {})
+      @services = params[:registry]
+      raise "Missing :registry in config that must list the availables services" unless @services
     end
 
     # Returns the Service Registry as a Hash

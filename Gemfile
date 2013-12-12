@@ -10,7 +10,7 @@ gem "resilient_socket"
 # Doozer Client
 #gem "ruby_doozer"
 # Zookeeper Client
-gem "zookeeper"
+#gem "zookeeper"
 # Thread Safe Hash and Array
 gem "thread_safe"
 # For looking up Service entries in Service Registry

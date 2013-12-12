@@ -75,7 +75,8 @@ class ServiceRegistryTest < Test::Unit::TestCase
 
         should "using * version match" do
           assert (servers = RubySkynet.service_registry.servers_for(@service_name, '*', @region)), RubySkynet.service_registry.to_h.inspect
-          assert_equal 3, servers.size, servers
+          expected = RubySkynet::ServiceRegistry.respond_to?(:score_for_server) ? 3 : 4
+          assert_equal expected, servers.size, servers
           assert_equal true, servers.include?("#{@hostname}:#{@port}"), servers
           assert_equal true, servers.include?("#{@hostname}:#{@port+1}"), servers
           assert_equal true, servers.include?("#{@hostname}:#{@port+3}"), servers
@@ -110,6 +111,7 @@ class ServiceRegistryTest < Test::Unit::TestCase
         ['10.0.11.0',     0 ],
       ].each do |test|
         should "handle score #{test[1]}" do
+          skip "Not applicable to Static Service Registry" unless RubySkynet::ServiceRegistry.respond_to?(:score_for_server)
           local_ip_address = "192.168.11.0"
           assert_equal test[1], RubySkynet::ServiceRegistry.score_for_server(test[0], local_ip_address), "Local: #{local_ip_address} Server: #{test[0]} Score: #{test[1]}"
         end

@@ -42,7 +42,7 @@ class ServiceRegistryTest < Test::Unit::TestCase
         # Allow time for registry callback that service was deregistered
         sleep 0.1
         # No servers should be in the local registry
-#        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, @region)
+        #        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, @region)
       end
 
       should "find server using exact match" do
@@ -83,15 +83,21 @@ class ServiceRegistryTest < Test::Unit::TestCase
       end
 
       should "return nil when service not found" do
-        assert_equal nil, RubySkynet.service_registry.servers_for('MissingService', @version, @region)
+        assert_raise RubySkynet::ServiceUnavailable do
+          RubySkynet.service_registry.servers_for('MissingService', @version, @region)
+        end
       end
 
       should "return nil when version not found" do
-        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version+1, @region)
+        assert_raise RubySkynet::ServiceUnavailable do
+          RubySkynet.service_registry.servers_for(@service_name, @version+1, @region)
+        end
       end
 
       should "return nil when region not found" do
-        assert_equal nil, RubySkynet.service_registry.servers_for(@service_name, @version, 'OtherRegion')
+        assert_raise RubySkynet::ServiceUnavailable do
+          RubySkynet.service_registry.servers_for(@service_name, @version, 'OtherRegion')
+        end
       end
     end
 

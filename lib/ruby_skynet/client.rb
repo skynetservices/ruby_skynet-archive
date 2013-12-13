@@ -84,20 +84,14 @@ module RubySkynet
       # Skynet requires BSON RPC Calls to have the following format:
       # https://github.com/skynetservices/skynet/blob/master/protocol.md
       request_id = BSON::ObjectId.new.to_s
+
+      # Obtain list of servers implementing this service in order of priority
+      servers = ::RubySkynet.service_registry.servers_for(skynet_name, skynet_version, skynet_region)
+
       logger.tagged request_id do
         logger.benchmark_info "Called Skynet Service: #{skynet_name}.#{method_name}" do
-          retries = 0
-          # If it cannot connect to a server, try a different server
-          begin
-            Connection.with_connection(::RubySkynet.service_registry.server_for(skynet_name, skynet_version, skynet_region), connection_params) do |connection|
-              connection.rpc_call(request_id, skynet_name, method_name, parameters)
-            end
-          rescue ResilientSocket::ConnectionFailure => exc
-            if (retries < 3) && exc.cause.is_a?(Errno::ECONNREFUSED)
-              retries += 1
-              retry
-            end
-            # TODO rescue ServiceUnavailable retry x times until the service becomes available
+          Connection.with_connection(servers, connection_params) do |connection|
+            connection.rpc_call(request_id, skynet_name, method_name, parameters)
           end
         end
       end

@@ -52,7 +52,7 @@ module RubySkynet
   # By default it connects to a local ZooKeeper instance
   # Use .configure! to supply a configuration file with any other settings
   sync_cattr_reader :service_registry do
-    ServiceRegistry.new
+    ServiceRegistry.new(registry: {})
   end
 
   # Returns the current Registry Config information

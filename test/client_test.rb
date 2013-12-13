@@ -50,7 +50,7 @@ class ClientTest < Test::Unit::TestCase
           client = RubySkynet::Client.new('SomeService','*','ClientTest')
           client.call(:test, :hello => 'there')
         end
-        assert_match /No servers available for service: SomeService with version: \* in region: ClientTest/, exception.message
+        assert_match /No servers available for service: SomeService with version: -1 in region: ClientTest/, exception.message
       end
 
     end

@@ -1,6 +1,5 @@
 require 'semantic_logger'
 require 'thread_safe'
-require 'gene_pool'
 require 'resolv'
 
 #
@@ -62,18 +61,6 @@ module RubySkynet
         @registry.delete("#{name}/#{version}/#{region}/#{hostname}/#{port}")
       end
 
-      # Return a server that implements the specified service
-      def server_for(name, version='*', region=RubySkynet.region)
-        if servers = servers_for(name, version, region)
-          # Randomly select one of the servers offering the service
-          servers[rand(servers.size)]
-        else
-          msg = "No servers available for service: #{name} with version: #{version} in region: #{region}"
-          logger.warn msg
-          raise ServiceUnavailable.new(msg)
-        end
-      end
-
       # Returns [Array<String>] a list of servers implementing the requested service
       def servers_for(name, version='*', region=RubySkynet.region)
         if version == '*'
@@ -86,9 +73,11 @@ module RubySkynet
             end
           end
         end
-        if server_infos = @cache["#{name}/#{version}/#{region}"]
+        servers = if server_infos = @cache["#{name}/#{version}/#{region}"]
           server_infos.first.servers
         end
+        raise ServiceUnavailable.new("No servers available for service: #{name} with version: #{version} in region: #{region}") unless servers
+        servers
       end
 
       # Invokes registered callbacks when a specific server is shutdown or terminates

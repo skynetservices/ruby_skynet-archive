@@ -29,14 +29,18 @@ module RubySkynet
     begin
       require 'ruby_doozer'
       require 'ruby_skynet/doozer/service_registry'
+
+      # Shortcuts to loaded Registry classes
+      ServiceRegistry = RubySkynet::Doozer::ServiceRegistry
+      CachedRegistry  = Doozer::CachedRegistry
+      Registry        = Doozer::Registry
     rescue LoadError
-      raise LoadError, "Load either the 'zookeeper' or 'ruby_doozer' gem prior to loading RubySkynet. 'zookeeper' is preferred"
+      require 'ruby_skynet/static_service_registry'
+
+      # Use Static Service Registry
+      ServiceRegistry = RubySkynet::StaticServiceRegistry
     end
 
-    # Shortcuts to loaded Registry classes
-    ServiceRegistry = RubySkynet::Doozer::ServiceRegistry
-    CachedRegistry  = Doozer::CachedRegistry
-    Registry        = Doozer::Registry
   end
 end
 

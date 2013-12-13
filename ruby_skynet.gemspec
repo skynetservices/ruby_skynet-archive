@@ -17,9 +17,8 @@ Gem::Specification.new do |spec|
   spec.files       = Dir.glob("lib/**/*") + Dir.glob("examples/**/*.rb") +  %w(LICENSE.txt README.md)
   spec.license     = "Apache License V2.0"
   spec.has_rdoc    = true
-  spec.add_dependency 'semantic_logger', '>= 2.1.0'
+  spec.add_dependency 'semantic_logger', '>= 2.6.1'
   spec.add_dependency 'resilient_socket', '>= 0.5.0'
-  spec.add_dependency 'gene_pool', '>= 1.3.0'
   spec.add_dependency 'sync_attr', '>= 1.0.0'
   spec.add_dependency 'bson', '~> 2.0.0.rc3'
   spec.add_dependency 'thread_safe'

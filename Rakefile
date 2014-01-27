@@ -16,7 +16,7 @@ task :test do
   Rake::Task['functional'].invoke
 end
 
-task :gem => :test do
+task :gem do
   system "gem build ruby_skynet.gemspec"
 end
 
